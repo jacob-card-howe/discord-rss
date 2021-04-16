@@ -1,4 +1,4 @@
-package pingpong
+package main
 
 import (
 	"flag"
