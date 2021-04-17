@@ -72,4 +72,8 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 	if strings.Contains(strings.ToLower(m.Content), "pong") {
 		s.ChannelMessageSend(m.ChannelID, "Ping!")
 	}
+
+	if strings.Contains(strings.ToLower(m.Content), "pionog") {
+		s.ChannelMessageSend(m.ChannelID, "Anthony, go home you're drunk")
+	}
 }
