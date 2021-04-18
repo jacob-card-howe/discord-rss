@@ -14,7 +14,12 @@ import (
 
 // Used to keep track of the latest RSS Update
 // THOUGHT: I wonder if we change this to a map to keep track of Items[0].{Title, Description, Link, etc}???
-var titleArray [1]string
+var linkArray []string //might be able to remove in a second
+var titleArray []string // might be able to remove in a second
+var messageArray []string
+var botMessages []string
+
+var newestTitleArray [1]string
 
 var oldTitleArray [1]string
 
@@ -38,18 +43,37 @@ func doEvery(d time.Duration, f func(time.Time)) {
 	}
 }
 
+
+
 func sendMessage(s *discordgo.Session, m *discordgo.MessageCreate) {
+	// build in logic for if len(messageArray) > len(oldMessageArray) to send backlogged RSS messages!!!
+
 
 	if m.Author.ID == s.State.User.ID {
+		fmt.Println("AWS RSS Bot Message ID:", m.Message.ID)
+		fmt.Println("AWS RSS Bot Message Contents:", m.Message.Content)
+		botMessage := m.Message.Content
+		botMessages = append(botMessages, botMessage)
 		return
 	}
 
-	if oldTitleArray[0] == titleArray[0] {
-		fmt.Println("Nothing to see here")
+	if oldTitleArray[0] == newestTitleArray[0] {
+		fmt.Println("No updates to RSS feed since last Discord Message")
+	} else if len(botMessages) > 0 {
+		for i := 0; i <= len(botMessages); i++ {
+			if botMessages[i] == message {
+				fmt.Println("I've already posted this, starting another parse in 5 minutes...")
+				return
+			} else {
+				s.ChannelMessageSend("830896361112076349", message)
+				fmt.Println("Sent message, parsing again in 5 minutes...")
+				return
+			}
+		}
 	} else {
 		s.ChannelMessageSend("830896361112076349", message)
-		fmt.Println("Message sent!")
-		doEvery(30*time.Second, parseAWS)
+		fmt.Println("Sent message, parsing again in 5 minutes...")
+		return
 	}
 }
 
@@ -59,20 +83,26 @@ func parseAWS(t time.Time) {
 	fp := gofeed.NewParser()
 	feed, _ := fp.ParseURL("https://aws.amazon.com/about-aws/whats-new/recent/feed/")
 
-	oldTitleArray[0] = titleArray[0]
-	if feed.Items[0].Title == titleArray[0] {
+	oldTitleArray[0] = newestTitleArray[0]
+	if feed.Items[0].Title == newestTitleArray[0] {
 		fmt.Println("No updates, sleeping for 5 minutes...")
-		doEvery(300*time.Second, parseAWS)
+		doEvery(30*time.Second, parseAWS)
 	} else {
-		fmt.Printf("NEW!: %v\n", feed.Items[0].Title)
-		fmt.Println(feed.Items[0].Link)
-		titleArray[0] = feed.Items[0].Title
-		message = fmt.Sprintf("%s\n%s", feed.Items[0].Title, feed.Items[0].Link)
+		newestTitleArray[0] = feed.Items[0].Title
 		// TODO: Figure out a way to trigger a send message on an update in this function.
 		// Currently, the sendMessage Function only triggers when someone comments something
 		// in any of the discord channels in Helping Helpdesk
-		fmt.Println("oldArray updated, sleeping for 5 minutes...")
-		doEvery(300*time.Second, parseAWS)
+
+		// Prints out the latest 100 Items in the AWS RSS Feed
+		for i := 0; i < 100; i++ {
+			titleArray = append(titleArray, feed.Items[i].Title)
+			linkArray = append(linkArray, feed.Items[i].Link)
+			message = fmt.Sprintf("%s\n%s", feed.Items[i].Title, feed.Items[i].Link)
+			messageArray = append(messageArray, message)
+		}
+		message = messageArray[0]
+		fmt.Println("messageArray updated, ready to send message in Discord. Sleeping for 5 minutes...")
+		doEvery(30*time.Second, parseAWS)
 	}
 }
 
