@@ -34,7 +34,11 @@ func init() {
 
 func sendMessage(s *discordgo.Session, m *discordgo.MessageCreate) {
 	feedParser := gofeed.NewParser()
-	feed, _ := feedParser.ParseURL("http://lorem-rss.herokuapp.com/feed?length=100&unit=second&interval=30")
+	fmt.Println("Parsing RSS Feed...")
+	feed, err := feedParser.ParseURL("http://lorem-rss.herokuapp.com/feed?length=100&unit=second&interval=30")
+	if err != nil {
+		fmt.Println("There was an error parsing the URL:", err)
+	}
 
 	newestTitleArray[0] = feed.Items[0].Title
 
