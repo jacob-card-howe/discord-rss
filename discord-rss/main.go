@@ -6,21 +6,17 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
+	//"time"
 
 	"github.com/bwmarrin/discordgo"
 	"github.com/mmcdole/gofeed"
 )
 
 // Used to keep track of the latest RSS Update
-// THOUGHT: I wonder if we change this to a map to keep track of Items[0].{Title, Description, Link, etc}???
-var linkArray []string //might be able to remove in a second
-var titleArray []string // might be able to remove in a second
 var messageArray []string
 var botMessages []string
 
 var newestTitleArray [1]string
-
 var oldTitleArray [1]string
 
 // Used to accept CLI Parameters
@@ -36,73 +32,57 @@ func init() {
 	flag.Parse()
 }
 
-// Runs whatever function we feed this every X seconds, minutes, hours, etc.
-func doEvery(d time.Duration, f func(time.Time)) {
-	for x := range time.Tick(d) {
-		f(x)
-	}
-}
-
-
-
 func sendMessage(s *discordgo.Session, m *discordgo.MessageCreate) {
-	// build in logic for if len(messageArray) > len(oldMessageArray) to send backlogged RSS messages!!!
+	feedParser := gofeed.NewParser()
+	feed, _ := feedParser.ParseURL("http://lorem-rss.herokuapp.com/feed?length=100&unit=second&interval=30")
 
+	newestTitleArray[0] = feed.Items[0].Title
+
+	// Should update the messageArray for the latest 100 entries in the RSS Feed
+	for i := 0; i <= 99; i++ {
+		message = fmt.Sprintf("%s\n%s", feed.Items[i].Title, feed.Items[i].Link)
+		if len(messageArray) > 0 {
+			messageArray = append(messageArray, "Checking for Space") // gets overwritten, only exists to test if the array has space
+			copy(messageArray[1:], messageArray[0:]) // shifts existing messageArray[0] value to position 1 to make room for the new message
+			messageArray[0] = message
+		} else {
+			messageArray = append(messageArray, message)
+		}
+	}
+
+	fmt.Println("There's currently this many items in the messageArray:", len(messageArray))
 
 	if m.Author.ID == s.State.User.ID {
 		fmt.Println("AWS RSS Bot Message ID:", m.Message.ID)
 		fmt.Println("AWS RSS Bot Message Contents:", m.Message.Content)
 		botMessage := m.Message.Content
-		botMessages = append(botMessages, botMessage)
+		botMessages = append(botMessages, "Testing for Space") // gets overwritten, only exists to test if the array has space
+		copy(botMessages[1:], botMessages[0:]) // shifts existing botMessage[0] value to position 1 to make room for the new message
+		botMessages[0] = botMessage
+		fmt.Println(botMessages) // Prints out all the messages the bot has sent
 		return
 	}
 
-	if oldTitleArray[0] == newestTitleArray[0] {
-		fmt.Println("No updates to RSS feed since last Discord Message")
-	} else if len(botMessages) > 0 {
-		for i := 0; i <= len(botMessages); i++ {
-			if botMessages[i] == message {
-				fmt.Println("I've already posted this, starting another parse in 5 minutes...")
-				return
-			} else {
-				s.ChannelMessageSend("830896361112076349", message)
-				fmt.Println("Sent message, parsing again in 5 minutes...")
+	if len(botMessages) > 0 {
+		if botMessages[0] == messageArray[0] {
+			fmt.Println("I've already posted this:", messageArray[0])
+			messageArray = nil // Clears messageArray for next parse
+			return
+		} else {
+			for i:= range messageArray {
+				fmt.Println("This is the for loop working on line 61:", messageArray[i]) // Only outputs first value?????? WHYYYYYYYY
+				//s.ChannelMessageSend("830896361112076349", messageArray[i])
+				//fmt.Println("Sent message from line 61")
+				//fmt.Println("Sent message, parsing again in 5 minutes...")
 				return
 			}
+			messageArray = nil // Clears messageArray for next parse
 		}
 	} else {
-		s.ChannelMessageSend("830896361112076349", message)
-		fmt.Println("Sent message, parsing again in 5 minutes...")
+		s.ChannelMessageSend("830896361112076349", messageArray[0])
+		fmt.Println("Send message from line 68")
+		//fmt.Println("Sent message, parsing again in 5 minutes...")
 		return
-	}
-}
-
-// Parses the AWS RSS Feed via URL
-// THOUGHT: Could probably use a for loop to parse through additional URLs and send to their respective discord channels as desired
-func parseAWS(t time.Time) {
-	fp := gofeed.NewParser()
-	feed, _ := fp.ParseURL("https://aws.amazon.com/about-aws/whats-new/recent/feed/")
-
-	oldTitleArray[0] = newestTitleArray[0]
-	if feed.Items[0].Title == newestTitleArray[0] {
-		fmt.Println("No updates, sleeping for 5 minutes...")
-		doEvery(30*time.Second, parseAWS)
-	} else {
-		newestTitleArray[0] = feed.Items[0].Title
-		// TODO: Figure out a way to trigger a send message on an update in this function.
-		// Currently, the sendMessage Function only triggers when someone comments something
-		// in any of the discord channels in Helping Helpdesk
-
-		// Prints out the latest 100 Items in the AWS RSS Feed
-		for i := 0; i < 100; i++ {
-			titleArray = append(titleArray, feed.Items[i].Title)
-			linkArray = append(linkArray, feed.Items[i].Link)
-			message = fmt.Sprintf("%s\n%s", feed.Items[i].Title, feed.Items[i].Link)
-			messageArray = append(messageArray, message)
-		}
-		message = messageArray[0]
-		fmt.Println("messageArray updated, ready to send message in Discord. Sleeping for 5 minutes...")
-		doEvery(30*time.Second, parseAWS)
 	}
 }
 
@@ -130,8 +110,8 @@ func main() {
 
 	// Wait here until CTRL-C or other term signal is received.
 	fmt.Println("Bot is now running.  Press CTRL-C to exit.")
-	fmt.Println("Starting AWS RSS Parsing in 10 seconds...")
-	doEvery(10*time.Second, parseAWS)
+	//fmt.Println("Starting AWS RSS Parsing in 10 seconds...")
+	//doEvery(10*time.Second, parseAWS)
 	sc := make(chan os.Signal, 1)
 	signal.Notify(sc, syscall.SIGINT, syscall.SIGTERM, os.Interrupt, os.Kill)
 	<-sc
