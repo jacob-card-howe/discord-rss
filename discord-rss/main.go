@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"reflect"
 	"syscall"
+
 	//"time"
 
 	"github.com/bwmarrin/discordgo"
@@ -14,10 +16,9 @@ import (
 
 // Used to keep track of the latest RSS Update
 var messageArray []string
-var botMessages []string
 
-var newestTitleArray [1]string
-var oldTitleArray [1]string
+// Used to keep track of recent Bot Messages
+var botMessageArray []string
 
 // Used to accept CLI Parameters
 var (
@@ -32,61 +33,41 @@ func init() {
 	flag.Parse()
 }
 
+// Sends messageArray anytime a new message is sent to your Discord Server
 func sendMessage(s *discordgo.Session, m *discordgo.MessageCreate) {
-	feedParser := gofeed.NewParser()
-	fmt.Println("Parsing RSS Feed...")
-	feed, err := feedParser.ParseURL("http://lorem-rss.herokuapp.com/feed?length=100&unit=second&interval=30")
-	if err != nil {
-		fmt.Println("There was an error parsing the URL:", err)
-	}
-
-	newestTitleArray[0] = feed.Items[0].Title
-
-	// Should update the messageArray for the latest 100 entries in the RSS Feed
-	for i := 0; i <= 99; i++ {
-		message = fmt.Sprintf("%s\n%s", feed.Items[i].Title, feed.Items[i].Link)
-		if len(messageArray) > 0 {
-			messageArray = append(messageArray, "Checking for Space") // gets overwritten, only exists to test if the array has space
-			copy(messageArray[1:], messageArray[0:]) // shifts existing messageArray[0] value to position 1 to make room for the new message
-			messageArray[0] = message
-		} else {
-			messageArray = append(messageArray, message)
-		}
-	}
-
-	fmt.Println("There's currently this many items in the messageArray:", len(messageArray))
 
 	if m.Author.ID == s.State.User.ID {
-		fmt.Println("AWS RSS Bot Message ID:", m.Message.ID)
-		fmt.Println("AWS RSS Bot Message Contents:", m.Message.Content)
-		botMessage := m.Message.Content
-		botMessages = append(botMessages, "Testing for Space") // gets overwritten, only exists to test if the array has space
-		copy(botMessages[1:], botMessages[0:]) // shifts existing botMessage[0] value to position 1 to make room for the new message
-		botMessages[0] = botMessage
-		fmt.Println(botMessages) // Prints out all the messages the bot has sent
+		fmt.Println("This bot posted the last message. Not parsing again.")
 		return
-	}
-
-	if len(botMessages) > 0 {
-		if botMessages[0] == messageArray[0] {
-			fmt.Println("I've already posted this:", messageArray[0])
-			messageArray = nil // Clears messageArray for next parse
-			return
-		} else {
-			for i:= range messageArray {
-				fmt.Println("This is the for loop working on line 61:", messageArray[i]) // Only outputs first value?????? WHYYYYYYYY
-				//s.ChannelMessageSend("830896361112076349", messageArray[i])
-				//fmt.Println("Sent message from line 61")
-				//fmt.Println("Sent message, parsing again in 5 minutes...")
-				return
-			}
-			messageArray = nil // Clears messageArray for next parse
-		}
 	} else {
-		s.ChannelMessageSend("830896361112076349", messageArray[0])
-		fmt.Println("Send message from line 68")
-		//fmt.Println("Sent message, parsing again in 5 minutes...")
-		return
+		// Parses anytime a new message is detected in your Discord Server
+		feedParser := gofeed.NewParser()
+		fmt.Println("Parsing RSS Feed...")
+		//feed, err := feedParser.ParseURL("http://lorem-rss.herokuapp.com/feed?length=10&unit=second&interval=30")
+		feed, err := feedParser.ParseURL("https://aws.amazon.com/about-aws/whats-new/recent/feed/")
+		if err != nil {
+			fmt.Println("There was an error parsing the URL:", err)
+		}
+
+		// Grabs last 4 RSS Items and appends them to messageArray
+		for i := 0; i <= 3; i++ {
+			message = fmt.Sprintf("%s\n%s", feed.Items[i].Title, feed.Items[i].Link)
+			messageArray = append(messageArray, message)
+		}
+
+		// Checks if messageArray and botMessageArray are both equal
+		if reflect.DeepEqual(messageArray, botMessageArray) {
+			fmt.Println("I've already posted these messages in this messageArray.")
+		} else {
+			// Sends entire messageArray
+			for i := 0; i < len(messageArray); i++ {
+				s.ChannelMessageSend("830896361112076349", messageArray[i])
+				botMessageArray = append(botMessageArray, messageArray[i])
+			}
+		}
+		// Clears the message array
+		fmt.Println("Clearing messageArray...")
+		messageArray = nil
 	}
 }
 
@@ -114,8 +95,7 @@ func main() {
 
 	// Wait here until CTRL-C or other term signal is received.
 	fmt.Println("Bot is now running.  Press CTRL-C to exit.")
-	//fmt.Println("Starting AWS RSS Parsing in 10 seconds...")
-	//doEvery(10*time.Second, parseAWS)
+	fmt.Println("Your RSS feed will be parsed any time there's a new message in your Discord Server.")
 	sc := make(chan os.Signal, 1)
 	signal.Notify(sc, syscall.SIGINT, syscall.SIGTERM, os.Interrupt, os.Kill)
 	<-sc
