@@ -49,8 +49,8 @@ func sendMessage(s *discordgo.Session, m *discordgo.MessageCreate) {
 			fmt.Println("There was an error parsing the URL:", err)
 		}
 
-		// Grabs last 4 RSS Items and appends them to messageArray
-		for i := 0; i <= 3; i++ {
+		// Grabs last 10 RSS Items and appends them to messageArray
+		for i := 0; i <= 9; i++ {
 			message = fmt.Sprintf("%s\n%s", feed.Items[i].Title, feed.Items[i].Link)
 			messageArray = append(messageArray, message)
 		}
