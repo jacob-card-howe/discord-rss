@@ -8,8 +8,6 @@ import (
 	"reflect"
 	"syscall"
 
-	//"time"
-
 	"github.com/bwmarrin/discordgo"
 	"github.com/mmcdole/gofeed"
 )
