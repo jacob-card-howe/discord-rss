@@ -21,8 +21,9 @@ var botMessageArray []string
 
 // Used to accept CLI Parameters
 var (
-	Token string
-	Url   string
+	Token     string
+	Url       string
+	ChannelId string
 )
 
 var message string
@@ -31,6 +32,7 @@ var message string
 func init() {
 	flag.StringVar(&Token, "t", "", "Bot Token")
 	flag.StringVar(&Url, "u", "", "RSS Feed URL")
+	flag.StringVar(&ChannelId, "c", "", "Channel ID you want messages to post in")
 	flag.Parse()
 }
 
@@ -44,7 +46,7 @@ func sendMessage(s *discordgo.Session, m *discordgo.MessageCreate) {
 		// Parses anytime a new message is detected in your Discord Server
 		feedParser := gofeed.NewParser()
 		log.Println("Parsing RSS Feed...")
-		//feed, err := feedParser.ParseURL("http://lorem-rss.herokuapp.com/feed?length=10&unit=second&interval=60")
+		//feed, err := feedParser.ParseURL("http://lorem-rss.herokuapp.com/feed?length=10&unit=second&interval=60") // Great RSS feed for testing :)
 		feed, err := feedParser.ParseURL(Url)
 		if err != nil {
 			fmt.Println("There was an error parsing the URL:", err)
@@ -62,7 +64,7 @@ func sendMessage(s *discordgo.Session, m *discordgo.MessageCreate) {
 		// It's noisy if we don't do it this way, and also exceeds Discord's character limit / message rate limit
 		log.Println("Generating bigMessage...")
 		convertToStrings := fmt.Sprintf(strings.Join(messageArray, "\n"))
-		bigMessage := fmt.Sprintf("Here are the 5 latest AWS News Articles:\n\n%v", convertToStrings)
+		bigMessage := fmt.Sprintf("Here are the 5 latest RSS Feed Items:\n\n%v", convertToStrings)
 
 		// Checks to see if there's a difference between messageArray & botMessageArray
 		if botMessageArray != nil {
@@ -71,8 +73,8 @@ func sendMessage(s *discordgo.Session, m *discordgo.MessageCreate) {
 					log.Println("I've posted this message recently, skipping new post.")
 					return
 				} else {
-					log.Println("Sending bigMessage to #aws-rss-feed on line 70...")
-					s.ChannelMessageSend("830896361112076349", bigMessage)
+					log.Println("Sending message to Discord...")
+					s.ChannelMessageSend(ChannelId, bigMessage)
 					botMessageArray = append(botMessageArray, bigMessage)
 
 					// Clears the message array
@@ -87,8 +89,8 @@ func sendMessage(s *discordgo.Session, m *discordgo.MessageCreate) {
 				}
 			}
 		} else {
-			log.Println("Sending bigMessage to #aws-rss-feed on line 76...")
-			s.ChannelMessageSend("830896361112076349", bigMessage)
+			log.Println("Sending message to Discord...")
+			s.ChannelMessageSend(ChannelId, bigMessage)
 			botMessageArray = append(botMessageArray, bigMessage)
 
 			// Clears the message array
