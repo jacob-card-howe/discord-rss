@@ -71,6 +71,10 @@ func sendMessage(s *discordgo.Session, m *discordgo.MessageCreate) {
 			for _, value := range botMessageArray {
 				if value == bigMessage {
 					log.Println("I've posted this message recently, skipping new post.")
+
+					// Clears the message array
+					log.Println("Clearing messageArray...")
+					messageArray = nil
 					return
 				} else {
 					log.Println("Sending message to Discord...")
