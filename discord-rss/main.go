@@ -3,9 +3,10 @@ package main
 import (
 	"flag"
 	"fmt"
+	"log"
 	"os"
 	"os/signal"
-	"reflect"
+	"strings"
 	"syscall"
 
 	"github.com/bwmarrin/discordgo"
@@ -21,6 +22,7 @@ var botMessageArray []string
 // Used to accept CLI Parameters
 var (
 	Token string
+	Url   string
 )
 
 var message string
@@ -28,6 +30,7 @@ var message string
 // Initializes the Discord Part of the App for DiscordGo module
 func init() {
 	flag.StringVar(&Token, "t", "", "Bot Token")
+	flag.StringVar(&Url, "u", "", "RSS Feed URL")
 	flag.Parse()
 }
 
@@ -35,37 +38,69 @@ func init() {
 func sendMessage(s *discordgo.Session, m *discordgo.MessageCreate) {
 
 	if m.Author.ID == s.State.User.ID {
-		fmt.Println("This bot posted the last message. Not parsing again.")
+		log.Println("This bot posted the last message. Not parsing again.")
 		return
 	} else {
 		// Parses anytime a new message is detected in your Discord Server
 		feedParser := gofeed.NewParser()
-		fmt.Println("Parsing RSS Feed...")
-		//feed, err := feedParser.ParseURL("http://lorem-rss.herokuapp.com/feed?length=10&unit=second&interval=30")
-		feed, err := feedParser.ParseURL("https://aws.amazon.com/about-aws/whats-new/recent/feed/")
+		log.Println("Parsing RSS Feed...")
+		//feed, err := feedParser.ParseURL("http://lorem-rss.herokuapp.com/feed?length=10&unit=second&interval=60")
+		feed, err := feedParser.ParseURL(Url)
 		if err != nil {
 			fmt.Println("There was an error parsing the URL:", err)
+			return
 		}
 
-		// Grabs last 10 RSS Items and appends them to messageArray
-		for i := 0; i <= 9; i++ {
-			message = fmt.Sprintf("%s\n%s", feed.Items[i].Title, feed.Items[i].Link)
+		// Grabs last 5 RSS Items and appends them to messageMap (Discord Character Limits)
+		log.Println("Generating messageArray...")
+		for i := 0; i <= 4; i++ {
+			message = fmt.Sprintf("%s!\n%s\n", feed.Items[i].Title, feed.Items[i].Link)
 			messageArray = append(messageArray, message)
 		}
 
-		// Checks if messageArray and botMessageArray are both equal
-		if reflect.DeepEqual(messageArray, botMessageArray) {
-			fmt.Println("I've already posted these messages in this messageArray.")
+		// Formats messageArray into one big message instead of sending 5 individual messages
+		// It's noisy if we don't do it this way, and also exceeds Discord's character limit / message rate limit
+		log.Println("Generating bigMessage...")
+		convertToStrings := fmt.Sprintf(strings.Join(messageArray, "\n"))
+		bigMessage := fmt.Sprintf("Here are the 5 latest AWS News Articles:\n\n%v", convertToStrings)
+
+		// Checks to see if there's a difference between messageArray & botMessageArray
+		if botMessageArray != nil {
+			for _, value := range botMessageArray {
+				if value == bigMessage {
+					log.Println("I've posted this message recently, skipping new post.")
+					return
+				} else {
+					log.Println("Sending bigMessage to #aws-rss-feed on line 70...")
+					s.ChannelMessageSend("830896361112076349", bigMessage)
+					botMessageArray = append(botMessageArray, bigMessage)
+
+					// Clears the message array
+					log.Println("Clearing messageArray...")
+					messageArray = nil
+
+					// Clears the botMessageArray if len(botMessageArray) > 1000
+					if len(botMessageArray) > 1000 {
+						botMessageArray = nil
+						return
+					}
+				}
+			}
 		} else {
-			// Sends entire messageArray
-			for i := 0; i < len(messageArray); i++ {
-				s.ChannelMessageSend("830896361112076349", messageArray[i])
-				botMessageArray = append(botMessageArray, messageArray[i])
+			log.Println("Sending bigMessage to #aws-rss-feed on line 76...")
+			s.ChannelMessageSend("830896361112076349", bigMessage)
+			botMessageArray = append(botMessageArray, bigMessage)
+
+			// Clears the message array
+			log.Println("Clearing messageArray...")
+			messageArray = nil
+
+			// Clears the botMessageArray if len(botMessageArray) > 1000
+			if len(botMessageArray) > 1000 {
+				botMessageArray = nil
+				return
 			}
 		}
-		// Clears the message array
-		fmt.Println("Clearing messageArray...")
-		messageArray = nil
 	}
 }
 
