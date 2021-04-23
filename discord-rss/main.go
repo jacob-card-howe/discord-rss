@@ -38,10 +38,12 @@ func init() {
 
 // Sends messageArray anytime a new message is sent to your Discord Server
 func sendMessage(s *discordgo.Session, m *discordgo.MessageCreate) {
+	// Clears the message array on every new message
+	log.Println("Clearing the messageArray...")
+	messageArray = nil
 
 	if m.Author.ID == s.State.User.ID {
 		log.Println("This bot posted the last message. Not parsing again.")
-		return
 	} else {
 		// Parses anytime a new message is detected in your Discord Server
 		feedParser := gofeed.NewParser()
@@ -67,45 +69,35 @@ func sendMessage(s *discordgo.Session, m *discordgo.MessageCreate) {
 		bigMessage := fmt.Sprintf("Here are the 5 latest RSS Feed Items:\n\n%v", convertToStrings)
 
 		// Checks to see if there's a difference between messageArray & botMessageArray
-		if botMessageArray != nil {
-			for _, value := range botMessageArray {
-				if value == bigMessage {
-					log.Println("I've posted this message recently, skipping new post.")
+		if botMessageArray != nil && messageArray != nil {
+			if bigMessage != botMessageArray[0] {
+				log.Println("Sending message to Discord...")
+				s.ChannelMessageSend(ChannelId, bigMessage)
 
-					// Clears the message array
-					log.Println("Clearing messageArray...")
-					messageArray = nil
-					return
-				} else {
-					log.Println("Sending message to Discord...")
-					s.ChannelMessageSend(ChannelId, bigMessage)
-					botMessageArray = append(botMessageArray, bigMessage)
-
-					// Clears the message array
-					log.Println("Clearing messageArray...")
-					messageArray = nil
-
-					// Clears the botMessageArray if len(botMessageArray) > 1000
-					if len(botMessageArray) > 1000 {
-						botMessageArray = nil
-						return
-					}
-				}
+				// Appends message to the front of botMessageArray
+				botMessageArray = append(botMessageArray, bigMessage)
+				copy(botMessageArray[1:], botMessageArray)
+				botMessageArray[0] = bigMessage
+			} else {
+				log.Println("I've posted this message recently, skipping new post.")
 			}
-		} else {
+		}
+
+		if botMessageArray == nil {
 			log.Println("Sending message to Discord...")
 			s.ChannelMessageSend(ChannelId, bigMessage)
+
+			// Appends message to the front of botMessageArray
 			botMessageArray = append(botMessageArray, bigMessage)
+			copy(botMessageArray[1:], botMessageArray)
+			botMessageArray[0] = bigMessage
 
-			// Clears the message array
-			log.Println("Clearing messageArray...")
-			messageArray = nil
+		}
 
-			// Clears the botMessageArray if len(botMessageArray) > 1000
-			if len(botMessageArray) > 1000 {
-				botMessageArray = nil
-				return
-			}
+		// Clears the botMessageArray if len(botMessageArray) > 1000
+		if len(botMessageArray) > 1000 {
+			botMessageArray = nil
+			return
 		}
 	}
 }
