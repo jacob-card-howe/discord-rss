@@ -32,7 +32,11 @@ var message string
 func init() {
 	flag.StringVar(&Token, "t", "", "Bot Token")
 	flag.StringVar(&Url, "u", "", "RSS Feed URL")
+<<<<<<< HEAD
 	flag.StringVar(&ChannelId, "c", "", "ID of your Discord Channel")
+=======
+	flag.StringVar(&ChannelId, "c", "", "Channel ID you want messages to post in")
+>>>>>>> 5e22b786aaa899d4443b3f7187d374b7873ef5e6
 	flag.Parse()
 }
 
@@ -48,7 +52,7 @@ func sendMessage(s *discordgo.Session, m *discordgo.MessageCreate) {
 		// Parses anytime a new message is detected in your Discord Server
 		feedParser := gofeed.NewParser()
 		log.Println("Parsing RSS Feed...")
-		//feed, err := feedParser.ParseURL("http://lorem-rss.herokuapp.com/feed?length=10&unit=second&interval=60")
+		//feed, err := feedParser.ParseURL("http://lorem-rss.herokuapp.com/feed?length=10&unit=second&interval=60") // Great RSS feed for testing :)
 		feed, err := feedParser.ParseURL(Url)
 		if err != nil {
 			fmt.Println("There was an error parsing the URL:", err)
@@ -66,7 +70,7 @@ func sendMessage(s *discordgo.Session, m *discordgo.MessageCreate) {
 		// It's noisy if we don't do it this way, and also exceeds Discord's character limit / message rate limit
 		log.Println("Generating bigMessage...")
 		convertToStrings := fmt.Sprintf(strings.Join(messageArray, "\n"))
-		bigMessage := fmt.Sprintf("Here are the 5 latest AWS News Articles:\n\n%v", convertToStrings)
+		bigMessage := fmt.Sprintf("Here are the 5 latest RSS Feed Items:\n\n%v", convertToStrings)
 
 		// Checks to see if there's a difference between messageArray & botMessageArray
 		if botMessageArray != nil && messageArray != nil {
