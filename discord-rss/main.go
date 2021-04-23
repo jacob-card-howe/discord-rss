@@ -32,11 +32,7 @@ var message string
 func init() {
 	flag.StringVar(&Token, "t", "", "Bot Token")
 	flag.StringVar(&Url, "u", "", "RSS Feed URL")
-<<<<<<< HEAD
-	flag.StringVar(&ChannelId, "c", "", "ID of your Discord Channel")
-=======
 	flag.StringVar(&ChannelId, "c", "", "Channel ID you want messages to post in")
->>>>>>> 5e22b786aaa899d4443b3f7187d374b7873ef5e6
 	flag.Parse()
 }
 
@@ -45,6 +41,10 @@ func sendMessage(s *discordgo.Session, m *discordgo.MessageCreate) {
 	// Clears the message array on every new message
 	log.Println("Clearing the messageArray...")
 	messageArray = nil
+
+	if m.Content == "!status" {
+		s.ChannelMessageSend(ChannelId, "I'm running! If you're not getting updates from your RSS feed, it's likely because it hasn't updated yet. Try again later!")
+	}
 
 	if m.Author.ID == s.State.User.ID {
 		log.Println("This bot posted the last message. Not parsing again.")
@@ -55,7 +55,7 @@ func sendMessage(s *discordgo.Session, m *discordgo.MessageCreate) {
 		//feed, err := feedParser.ParseURL("http://lorem-rss.herokuapp.com/feed?length=10&unit=second&interval=60") // Great RSS feed for testing :)
 		feed, err := feedParser.ParseURL(Url)
 		if err != nil {
-			fmt.Println("There was an error parsing the URL:", err)
+			log.Println("There was an error parsing the URL:", err)
 			return
 		}
 
@@ -76,7 +76,12 @@ func sendMessage(s *discordgo.Session, m *discordgo.MessageCreate) {
 		if botMessageArray != nil && messageArray != nil {
 			if bigMessage != botMessageArray[0] {
 				log.Println("Sending message to Discord...")
-				s.ChannelMessageSend(ChannelId, bigMessage)
+				_, err := s.ChannelMessageSend(ChannelId, bigMessage)
+				if err != nil {
+					log.Println("There was an error sending your message:", err)
+				} else {
+					log.Println("Your message:\n", bigMessage)
+				}
 
 				// Appends message to the front of botMessageArray
 				botMessageArray = append(botMessageArray, bigMessage)
@@ -89,7 +94,12 @@ func sendMessage(s *discordgo.Session, m *discordgo.MessageCreate) {
 
 		if botMessageArray == nil {
 			log.Println("Sending message to Discord...")
-			s.ChannelMessageSend(ChannelId, bigMessage)
+			_, err := s.ChannelMessageSend(ChannelId, bigMessage)
+			if err != nil {
+				log.Println("There was an error sending your message:", err)
+			} else {
+				log.Println("Your message:\n", bigMessage)
+			}
 
 			// Appends message to the front of botMessageArray
 			botMessageArray = append(botMessageArray, bigMessage)
