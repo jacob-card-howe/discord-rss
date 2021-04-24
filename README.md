@@ -31,3 +31,9 @@ Next, run the image (`docker run -e BOT_TOKEN=YOUR_BOT_TOKEN -e RSS_URL=YOUR_RSS
 To generate a Bot Token, you'll need to go to the [Discord Developer Portal](https://discord.com/developers/applications/). [This article](https://www.freecodecamp.org/news/create-a-discord-bot-with-python/) by [freecodecamp.org](https://www.freecodecamp.org) does a great job of going through the steps / permissions you'll need for a simple Discord Bot.
 
 To get your `CHANNEL_ID`, you'll need to enable developer mode on your Discord Client. [This Support Documentation by Discord](https://support.discord.com/hc/en-us/articles/206346498-Where-can-I-find-my-User-Server-Message-ID-) does a really good walkthrough of how to set that up. 
+
+## Additional Documentation / References
+[mmcdole/gofeed](https://github.com/mmcdole/gofeed)
+[bwmarrin/discordgo](https://github.com/bwmarrin/discordgo)
+[Discord Support](https://support.discord.com/hc/en-us)
+[Discord API Documentation](https://discord.com/developers/docs/intro)
