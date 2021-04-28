@@ -55,13 +55,21 @@ func GetCreationDate(ID string) (t time.Time, timeInRFC3339 string, err error) {
 }
 
 func messageCreated(s *discordgo.Session, m *discordgo.MessageCreate) {
-	if m.Author.ID == s.State.User.ID {
+
+	// Rip out this logic since I already have built in "if there's a new message, don't start another loop" logic?
+
+	/*if m.Author.ID == s.State.User.ID {
 		log.Println("This bot posted the last message.")
 		return
-	}
+	}*/
 
 	if m.Content == "!status" {
-		_, err := s.ChannelMessageSend(ChannelId, "I'm running!\n\nIf you're not getting updates from your RSS feed, it's likely because it hasn't updated since your last message. Try again later!")
+		_, err := s.ChannelMessageSend(ChannelId, "I'm running!\n\nIf you're not getting updates from your RSS feed, it's likely there hasn't been an update recently.")
+		if err != nil {
+			log.Println("Error sending message:", err)
+		}
+	} else if m.Content == "!hours" {
+		_, err := s.ChannelMessageSend(ChannelId, "This bot runs from 9AM ET to 6PM ET. @Howe should write in logic to output my uptime on this command too!")
 		if err != nil {
 			log.Println("Error sending message:", err)
 		}
@@ -87,14 +95,14 @@ func messageCreated(s *discordgo.Session, m *discordgo.MessageCreate) {
 		diff := parseTimestamp.Sub(parseOldMessage)
 		log.Printf("These messages were posted %s apart", diff)
 
-		if diff.Hours() < 3 {
+		if diff.Hours() < 9 { // Still should build in logic to allow for a dynamic integer here
 			log.Println("The loop is still running! Skipping starting another loop.")
 		} else {
 			log.Println("Starting parser loop...")
 			ticker := time.NewTicker(30 * time.Second)
 			done := make(chan bool)
 
-			// An attempt to prevent doubling up on the loop below
+			// Prevents the loop below from running overtop itself
 			previousMessage = append(previousMessage, timestamp)
 			copy(previousMessage[1:], previousMessage)
 			previousMessage[0] = timestamp
@@ -229,7 +237,7 @@ func main() {
 		return
 	}
 
-	// Registers the sendMessage function as a callback for MessageCreate Events
+	// Registers the messageCreated function as a callback for a MessageCreated Event
 	dg.AddHandler(messageCreated)
 
 	// Sets the intentions of the bot, read through the docs
@@ -241,6 +249,8 @@ func main() {
 	if err != nil {
 		fmt.Println("error opening connection,", err)
 		return
+	} else {
+		dg.ChannelMessageSend(ChannelId, "I'm running!")
 	}
 
 	// Wait here until CTRL-C or other term signal is received.
