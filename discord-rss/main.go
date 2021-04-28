@@ -110,7 +110,7 @@ func messageCreated(s *discordgo.Session, m *discordgo.MessageCreate) {
 				}
 			}()
 
-			time.Sleep(3 * time.Hour)
+			time.Sleep(9 * time.Hour)
 			ticker.Stop()
 			done <- true
 			fmt.Println("Stopped ticker.")
@@ -141,7 +141,7 @@ func messageCreated(s *discordgo.Session, m *discordgo.MessageCreate) {
 				}
 			}()
 
-			time.Sleep(3 * time.Hour)
+			time.Sleep(9 * time.Hour)
 			ticker.Stop()
 			done <- true
 			fmt.Println("Stopped ticker.")
