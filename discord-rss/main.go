@@ -121,7 +121,7 @@ func messageCreated(s *discordgo.Session, m *discordgo.MessageCreate) {
 			time.Sleep(9 * time.Hour)
 			ticker.Stop()
 			done <- true
-			fmt.Println("Stopped ticker.")
+			log.Println("Stopped ticker.")
 		}
 	} else {
 		_, timestamp, err := GetCreationDate(m.ID)
@@ -152,7 +152,7 @@ func messageCreated(s *discordgo.Session, m *discordgo.MessageCreate) {
 			time.Sleep(9 * time.Hour)
 			ticker.Stop()
 			done <- true
-			fmt.Println("Stopped ticker.")
+			log.Println("Stopped ticker.")
 		}
 	}
 }
@@ -167,8 +167,8 @@ func sendUpdate(s *discordgo.Session) {
 	// Parses the RSS URL on every loop
 	feedParser := gofeed.NewParser()
 	log.Println("Parsing RSS Feed...")
-	feed, err := feedParser.ParseURL("http://lorem-rss.herokuapp.com/feed?unit=second&interval=15") // Great RSS feed for testing :)
-	//feed, err := feedParser.ParseURL(Url)
+	//feed, err := feedParser.ParseURL("http://lorem-rss.herokuapp.com/feed?unit=second&interval=15") // Great RSS feed for testing :)
+	feed, err := feedParser.ParseURL(Url)
 	if err != nil {
 		log.Println("There was an error parsing the URL:", err)
 		return
@@ -229,8 +229,8 @@ func fiveRecentUpdate(s *discordgo.Session) (bigMessage string) {
 	// Initial Parse of RSS feed
 	feedParser := gofeed.NewParser()
 	log.Println("Parsing RSS Feed...")
-	feed, err := feedParser.ParseURL("http://lorem-rss.herokuapp.com/feed?unit=second&interval=15") // Great RSS feed for testing :)
-	//feed, err := feedParser.ParseURL(Url)
+	//feed, err := feedParser.ParseURL("http://lorem-rss.herokuapp.com/feed?unit=second&interval=15") // Great RSS feed for testing :)
+	feed, err := feedParser.ParseURL(Url)
 	if err != nil {
 		log.Println("There was an error parsing the URL:", err)
 		return
@@ -256,7 +256,7 @@ func main() {
 	// Creating Discord Session Using Provided Bot Token
 	dg, err := discordgo.New("Bot " + Token)
 	if err != nil {
-		fmt.Println("Error creating Discord Session:", err)
+		log.Println("Error creating Discord Session:", err)
 		return
 	}
 
@@ -270,7 +270,7 @@ func main() {
 	// Open a websocket connection to Discord and begin listening.
 	err = dg.Open()
 	if err != nil {
-		fmt.Println("error opening connection,", err)
+		log.Println("error opening connection,", err)
 		return
 	} else {
 		dg.ChannelMessageSend(ChannelId, "I'm running!")
@@ -278,8 +278,8 @@ func main() {
 	}
 
 	// Wait here until CTRL-C or other term signal is received.
-	fmt.Println("Bot is now running.  Press CTRL-C to exit.")
-	fmt.Println("Your RSS feed will be parsed any time there's a new message in your Discord Server.")
+	log.Println("Bot is now running.  Press CTRL-C to exit.")
+	log.Println("Your RSS feed will be parsed any time there's a new message in your Discord Server.")
 	sc := make(chan os.Signal, 1)
 	signal.Notify(sc, syscall.SIGINT, syscall.SIGTERM, os.Interrupt, os.Kill)
 	<-sc
