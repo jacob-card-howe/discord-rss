@@ -157,18 +157,80 @@ func messageCreated(s *discordgo.Session, m *discordgo.MessageCreate) {
 	}
 }
 
-// Sends messageArray anytime a new message is sent to your Discord Server
+// Sends Update to Discord Channel on any new RSS Item
 func sendUpdate(s *discordgo.Session) {
 
 	// Clears the message array on every new message
 	log.Println("Clearing the messageArray...")
 	messageArray = nil
 
-	// Parses anytime a new message is detected in your Discord Server
+	// Parses the RSS URL on every loop
 	feedParser := gofeed.NewParser()
 	log.Println("Parsing RSS Feed...")
-	//feed, err := feedParser.ParseURL("http://lorem-rss.herokuapp.com/feed?unit=second&interval=15") // Great RSS feed for testing :)
-	feed, err := feedParser.ParseURL(Url)
+	feed, err := feedParser.ParseURL("http://lorem-rss.herokuapp.com/feed?unit=second&interval=15") // Great RSS feed for testing :)
+	//feed, err := feedParser.ParseURL(Url)
+	if err != nil {
+		log.Println("There was an error parsing the URL:", err)
+		return
+	}
+
+	// Grabs latest message at RSS Item position 0
+	log.Println("Generating messageArray...")
+	message = fmt.Sprintf("%s!\n%s\n", feed.Items[0].Title, feed.Items[0].Link)
+	messageArray = append(messageArray, message)
+
+	// Checks to see if there's a difference between messageArray & botMessageArray
+	if botMessageArray != nil && messageArray != nil {
+		if message != botMessageArray[0] {
+			log.Println("Sending message to Discord...")
+			_, err := s.ChannelMessageSend(ChannelId, message)
+			if err != nil {
+				log.Println("There was an error sending your message:", err)
+			} else {
+				log.Println("Your message:\n", message)
+			}
+
+			// Appends message to the front of botMessageArray
+			botMessageArray = append(botMessageArray, message)
+			copy(botMessageArray[1:], botMessageArray)
+			botMessageArray[0] = message
+		} else {
+			log.Println("I've posted this message recently, skipping new post.")
+		}
+	}
+
+	if botMessageArray == nil {
+		log.Println("Sending message to Discord...")
+		_, err := s.ChannelMessageSend(ChannelId, message)
+		if err != nil {
+			log.Println("There was an error sending your message:", err)
+		} else {
+			log.Println("Your message:\n", message)
+		}
+
+		// Appends message to the front of botMessageArray
+		botMessageArray = append(botMessageArray, message)
+		copy(botMessageArray[1:], botMessageArray)
+		botMessageArray[0] = message
+	}
+
+	// Clears the botMessageArray if len(botMessageArray) > 1000
+	if len(botMessageArray) > 1000 {
+		botMessageArray = nil
+		return
+	}
+}
+
+// Sends 5 most recent messages on Bot Start Up
+func fiveRecentUpdate(s *discordgo.Session) (bigMessage string) {
+
+	log.Println("Sent from fiveRecentUpdate()")
+
+	// Initial Parse of RSS feed
+	feedParser := gofeed.NewParser()
+	log.Println("Parsing RSS Feed...")
+	feed, err := feedParser.ParseURL("http://lorem-rss.herokuapp.com/feed?unit=second&interval=15") // Great RSS feed for testing :)
+	//feed, err := feedParser.ParseURL(Url)
 	if err != nil {
 		log.Println("There was an error parsing the URL:", err)
 		return
@@ -185,48 +247,9 @@ func sendUpdate(s *discordgo.Session) {
 	// It's noisy if we don't do it this way, and also exceeds Discord's character limit / message rate limit
 	log.Println("Generating bigMessage...")
 	convertToStrings := fmt.Sprintf(strings.Join(messageArray, "\n"))
-	bigMessage := fmt.Sprintf("Here are the 5 latest RSS Feed Items:\n\n%v", convertToStrings)
+	bigMessage = fmt.Sprintf("Here are the 5 latest RSS Feed Items:\n\n%v", convertToStrings)
 
-	// Checks to see if there's a difference between messageArray & botMessageArray
-	if botMessageArray != nil && messageArray != nil {
-		if bigMessage != botMessageArray[0] {
-			log.Println("Sending message to Discord...")
-			_, err := s.ChannelMessageSend(ChannelId, bigMessage)
-			if err != nil {
-				log.Println("There was an error sending your message:", err)
-			} else {
-				log.Println("Your message:\n", bigMessage)
-			}
-
-			// Appends message to the front of botMessageArray
-			botMessageArray = append(botMessageArray, bigMessage)
-			copy(botMessageArray[1:], botMessageArray)
-			botMessageArray[0] = bigMessage
-		} else {
-			log.Println("I've posted this message recently, skipping new post.")
-		}
-	}
-
-	if botMessageArray == nil {
-		log.Println("Sending message to Discord...")
-		_, err := s.ChannelMessageSend(ChannelId, bigMessage)
-		if err != nil {
-			log.Println("There was an error sending your message:", err)
-		} else {
-			log.Println("Your message:\n", bigMessage)
-		}
-
-		// Appends message to the front of botMessageArray
-		botMessageArray = append(botMessageArray, bigMessage)
-		copy(botMessageArray[1:], botMessageArray)
-		botMessageArray[0] = bigMessage
-	}
-
-	// Clears the botMessageArray if len(botMessageArray) > 1000
-	if len(botMessageArray) > 1000 {
-		botMessageArray = nil
-		return
-	}
+	return
 }
 
 func main() {
@@ -251,6 +274,7 @@ func main() {
 		return
 	} else {
 		dg.ChannelMessageSend(ChannelId, "I'm running!")
+		dg.ChannelMessageSend(ChannelId, fiveRecentUpdate(dg))
 	}
 
 	// Wait here until CTRL-C or other term signal is received.
@@ -261,5 +285,6 @@ func main() {
 	<-sc
 
 	// Cleanly close down the Discord session.
+	dg.ChannelMessageSend(ChannelId, "Shutting down...")
 	dg.Close()
 }
