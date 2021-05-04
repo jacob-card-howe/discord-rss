@@ -54,6 +54,7 @@ func GetCreationDate(ID string) (t time.Time, timeInRFC3339 string, err error) {
 	return
 }
 
+// Listens for new messages, starts a timer / loop to send messages to discord anytime there's a new RSS message
 func messageCreated(s *discordgo.Session, m *discordgo.MessageCreate) {
 	if m.Content == "!status" {
 		_, err := s.ChannelMessageSend(ChannelId, "I'm running!\n\nIf you're not getting updates from your RSS feed, it's likely there hasn't been an update recently.")
@@ -125,7 +126,7 @@ func messageCreated(s *discordgo.Session, m *discordgo.MessageCreate) {
 			ticker := time.NewTicker(30 * time.Second)
 			done := make(chan bool)
 
-			// An attempt to prevent doubling up on the loop below
+			// Prevents any doubling of this loop
 			previousMessage = append(previousMessage, timestamp)
 			copy(previousMessage[1:], previousMessage)
 			previousMessage[0] = timestamp
@@ -308,6 +309,6 @@ func main() {
 	<-sc
 
 	// Cleanly close down the Discord session.
-	//dg.ChannelMessageSend(ChannelId, "Shutting down...")
+	dg.ChannelMessageSend(ChannelId, "Shutting down...")
 	dg.Close()
 }
