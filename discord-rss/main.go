@@ -55,14 +55,6 @@ func GetCreationDate(ID string) (t time.Time, timeInRFC3339 string, err error) {
 }
 
 func messageCreated(s *discordgo.Session, m *discordgo.MessageCreate) {
-
-	// Rip out this logic since I already have built in "if there's a new message, don't start another loop" logic?
-
-	/*if m.Author.ID == s.State.User.ID {
-		log.Println("This bot posted the last message.")
-		return
-	}*/
-
 	if m.Content == "!status" {
 		_, err := s.ChannelMessageSend(ChannelId, "I'm running!\n\nIf you're not getting updates from your RSS feed, it's likely there hasn't been an update recently.")
 		if err != nil {
@@ -176,12 +168,16 @@ func sendUpdate(s *discordgo.Session) {
 
 	// Grabs latest message at RSS Item position 0
 	log.Println("Generating messageArray...")
-	message = fmt.Sprintf("%s!\n%s\n", feed.Items[0].Title, feed.Items[0].Link)
+	message = fmt.Sprintf("%s\n%s", feed.Items[0].Title, feed.Items[0].Link)
 	messageArray = append(messageArray, message)
 
 	// Checks to see if there's a difference between messageArray & botMessageArray
 	if botMessageArray != nil && messageArray != nil {
-		if message != botMessageArray[0] {
+		if strings.Contains(botMessageArray[0], message) {
+			log.Println("I've posted this message recently, skipping new post.")
+		} else {
+			log.Println(message)
+			log.Println(botMessageArray[0])
 			log.Println("Sending message to Discord...")
 			_, err := s.ChannelMessageSend(ChannelId, message)
 			if err != nil {
@@ -194,8 +190,6 @@ func sendUpdate(s *discordgo.Session) {
 			botMessageArray = append(botMessageArray, message)
 			copy(botMessageArray[1:], botMessageArray)
 			botMessageArray[0] = message
-		} else {
-			log.Println("I've posted this message recently, skipping new post.")
 		}
 	}
 
@@ -222,9 +216,25 @@ func sendUpdate(s *discordgo.Session) {
 }
 
 // Sends 5 most recent messages on Bot Start Up
-func fiveRecentUpdate(s *discordgo.Session) (bigMessage string) {
+func fiveRecentUpdate(s *discordgo.Session) {
 
-	log.Println("Sent from fiveRecentUpdate()")
+	log.Println("Getting last 100 message structs...")
+	last100MessageStructs, err := s.ChannelMessages(ChannelId, 100, "", "", "")
+	if err != nil {
+		log.Println("Error getting last 100 messages:", err)
+	}
+
+	var last100DiscordMessages []string
+
+	if len(last100MessageStructs) > 0 {
+		for i := 0; i < len(last100MessageStructs); i++ {
+			if last100MessageStructs[i].Author.ID == s.State.User.ID && (last100MessageStructs[i].Content == "Shutting down..." || last100MessageStructs[i].Content == "I'm running!" || last100MessageStructs[i].Content == "Placeholder Text :)" || last100MessageStructs[i].Content == "Here's the messages you missed while I was offline:" || last100MessageStructs[i].Content == "Looks like you're up to date on your RSS feed!") {
+				log.Println("This is a message we don't need.")
+			} else if last100MessageStructs[i].Author.ID == s.State.User.ID {
+				last100DiscordMessages = append(last100DiscordMessages, last100MessageStructs[i].Content)
+			}
+		}
+	}
 
 	// Initial Parse of RSS feed
 	feedParser := gofeed.NewParser()
@@ -236,20 +246,34 @@ func fiveRecentUpdate(s *discordgo.Session) (bigMessage string) {
 		return
 	}
 
-	// Grabs last 5 RSS Items and appends them to messageMap (Discord Character Limits)
+	// Grabs last 5 RSS Items and appends them to messageArray (Discord Character Limits)
 	log.Println("Generating messageArray...")
-	for i := 0; i <= 4; i++ {
-		message = fmt.Sprintf("%s!\n%s\n", feed.Items[i].Title, feed.Items[i].Link)
+	for i := 0; i < 5; i++ {
+		message = fmt.Sprintf("%s\n%s", feed.Items[i].Title, feed.Items[i].Link)
 		messageArray = append(messageArray, message)
 	}
 
-	// Formats messageArray into one big message instead of sending 5 individual messages
-	// It's noisy if we don't do it this way, and also exceeds Discord's character limit / message rate limit
-	log.Println("Generating bigMessage...")
-	convertToStrings := fmt.Sprintf(strings.Join(messageArray, "\n"))
-	bigMessage = fmt.Sprintf("Here are the 5 latest RSS Feed Items:\n\n%v", convertToStrings)
+	if len(last100DiscordMessages) > 0 {
+	out:
+		for i := 0; i < len(messageArray); i++ {
+			for j := 0; j < len(last100DiscordMessages); j++ {
+				if messageArray[i] == last100DiscordMessages[j] {
+					log.Println("We have a matching message, shouldn't send an update!")
+					s.ChannelMessageSend(ChannelId, "I'm running, but don't have any updates for you right now!")
 
-	return
+					// Appends message to the front of botMessageArray
+					botMessageArray = append(botMessageArray, messageArray[0])
+					break out
+				}
+			}
+		}
+	} else {
+		message = fmt.Sprintf("%s\n%s", feed.Items[0].Title, feed.Items[0].Link)
+		s.ChannelMessageSend(ChannelId, "This is my first run! Here's my latest RSS Message:")
+		s.ChannelMessageSend(ChannelId, message)
+
+		botMessageArray = append(botMessageArray, message)
+	}
 }
 
 func main() {
@@ -273,8 +297,7 @@ func main() {
 		log.Println("error opening connection,", err)
 		return
 	} else {
-		dg.ChannelMessageSend(ChannelId, "I'm running!")
-		dg.ChannelMessageSend(ChannelId, fiveRecentUpdate(dg))
+		fiveRecentUpdate(dg)
 	}
 
 	// Wait here until CTRL-C or other term signal is received.
@@ -285,6 +308,6 @@ func main() {
 	<-sc
 
 	// Cleanly close down the Discord session.
-	dg.ChannelMessageSend(ChannelId, "Shutting down...")
+	//dg.ChannelMessageSend(ChannelId, "Shutting down...")
 	dg.Close()
 }
