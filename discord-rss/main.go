@@ -153,6 +153,24 @@ func messageCreated(s *discordgo.Session, m *discordgo.MessageCreate) {
 // Sends Update to Discord Channel on any new RSS Item
 func sendUpdate(s *discordgo.Session) {
 
+	log.Println("Getting last 100 message structs...")
+	last100MessageStructs, err := s.ChannelMessages(ChannelId, 100, "", "", "")
+	if err != nil {
+		log.Println("Error getting last 100 messages:", err)
+	}
+
+	var last100DiscordMessages []string
+
+	if len(last100MessageStructs) > 0 {
+		for i := 0; i < len(last100MessageStructs); i++ {
+			if last100MessageStructs[i].Author.ID == s.State.User.ID && (last100MessageStructs[i].Content == "Shutting down..." || last100MessageStructs[i].Content == "I'm running!" || last100MessageStructs[i].Content == "Placeholder Text :)" || last100MessageStructs[i].Content == "Here's the messages you missed while I was offline:" || last100MessageStructs[i].Content == "Looks like you're up to date on your RSS feed!") {
+				log.Println("This is a message we don't need.")
+			} else if last100MessageStructs[i].Author.ID == s.State.User.ID {
+				last100DiscordMessages = append(last100DiscordMessages, last100MessageStructs[i].Content)
+			}
+		}
+	}
+
 	// Clears the message array on every new message
 	log.Println("Clearing the messageArray...")
 	messageArray = nil
@@ -171,6 +189,26 @@ func sendUpdate(s *discordgo.Session) {
 	log.Println("Generating messageArray...")
 	message = fmt.Sprintf("%s\n%s", feed.Items[0].Title, feed.Items[0].Link)
 	messageArray = append(messageArray, message)
+
+	if len(last100DiscordMessages) > 0 {
+	out:
+		for i := 0; i < len(messageArray); i++ {
+			for j := 0; j < len(last100DiscordMessages); j++ {
+				if messageArray[i] == last100DiscordMessages[j] {
+					log.Println("We have a matching message, shouldn't send an update!")
+					// Appends message to the front of botMessageArray
+					botMessageArray = append(botMessageArray, messageArray[0])
+					break out
+				}
+			}
+		}
+	} else {
+		message = fmt.Sprintf("%s\n%s", feed.Items[0].Title, feed.Items[0].Link)
+		s.ChannelMessageSend(ChannelId, "This is my first run! Here's my latest RSS Message:")
+		s.ChannelMessageSend(ChannelId, message)
+
+		botMessageArray = append(botMessageArray, message)
+	}
 
 	// Checks to see if there's a difference between messageArray & botMessageArray
 	if botMessageArray != nil && messageArray != nil {
@@ -219,28 +257,10 @@ func sendUpdate(s *discordgo.Session) {
 // Sends 5 most recent messages on Bot Start Up
 func fiveRecentUpdate(s *discordgo.Session) {
 
-	log.Println("Getting last 100 message structs...")
-	last100MessageStructs, err := s.ChannelMessages(ChannelId, 100, "", "", "")
-	if err != nil {
-		log.Println("Error getting last 100 messages:", err)
-	}
-
-	var last100DiscordMessages []string
-
-	if len(last100MessageStructs) > 0 {
-		for i := 0; i < len(last100MessageStructs); i++ {
-			if last100MessageStructs[i].Author.ID == s.State.User.ID && (last100MessageStructs[i].Content == "Shutting down..." || last100MessageStructs[i].Content == "I'm running!" || last100MessageStructs[i].Content == "Placeholder Text :)" || last100MessageStructs[i].Content == "Here's the messages you missed while I was offline:" || last100MessageStructs[i].Content == "Looks like you're up to date on your RSS feed!") {
-				log.Println("This is a message we don't need.")
-			} else if last100MessageStructs[i].Author.ID == s.State.User.ID {
-				last100DiscordMessages = append(last100DiscordMessages, last100MessageStructs[i].Content)
-			}
-		}
-	}
-
 	// Initial Parse of RSS feed
 	feedParser := gofeed.NewParser()
 	log.Println("Parsing RSS Feed...")
-	//feed, err := feedParser.ParseURL("http://lorem-rss.herokuapp.com/feed?unit=second&interval=15") // Great RSS feed for testing :)
+	//feed, err := feedParser.ParseURL("http://lorem-rss.herokuapp.com/feed?unit=second&interval=30") // Great RSS feed for testing :)
 	feed, err := feedParser.ParseURL(Url)
 	if err != nil {
 		log.Println("There was an error parsing the URL:", err)
@@ -254,27 +274,13 @@ func fiveRecentUpdate(s *discordgo.Session) {
 		messageArray = append(messageArray, message)
 	}
 
-	if len(last100DiscordMessages) > 0 {
-	out:
-		for i := 0; i < len(messageArray); i++ {
-			for j := 0; j < len(last100DiscordMessages); j++ {
-				if messageArray[i] == last100DiscordMessages[j] {
-					log.Println("We have a matching message, shouldn't send an update!")
-					s.ChannelMessageSend(ChannelId, "I'm running, but don't have any updates for you right now!")
+	// Formats messageArray into one big message instead of sending 5 individual messages
+	// It's noisy if we don't do it this way, and also exceeds Discord's character limit / message rate limit
+	log.Println("Generating bigMessage...")
+	convertToStrings := fmt.Sprintf(strings.Join(messageArray, "\n"))
+	bigMessage := fmt.Sprintf("Here are the 5 latest RSS Feed Items:\n\n%v", convertToStrings)
 
-					// Appends message to the front of botMessageArray
-					botMessageArray = append(botMessageArray, messageArray[0])
-					break out
-				}
-			}
-		}
-	} else {
-		message = fmt.Sprintf("%s\n%s", feed.Items[0].Title, feed.Items[0].Link)
-		s.ChannelMessageSend(ChannelId, "This is my first run! Here's my latest RSS Message:")
-		s.ChannelMessageSend(ChannelId, message)
-
-		botMessageArray = append(botMessageArray, message)
-	}
+	s.ChannelMessageSend(ChannelId, bigMessage)
 }
 
 func main() {
