@@ -22,6 +22,9 @@ var previousMessage []string
 // Used to keep track of recent Bot Messages
 var botMessageArray []string
 
+// Used to keep track of recent posts about the RSS feed
+var last100DiscordMessages []string
+
 // Used to accept CLI Parameters
 var (
 	Token     string
@@ -159,8 +162,6 @@ func sendUpdate(s *discordgo.Session) {
 		log.Println("Error getting last 100 messages:", err)
 	}
 
-	var last100DiscordMessages []string
-
 	if len(last100MessageStructs) > 0 {
 		for i := 0; i < len(last100MessageStructs); i++ {
 			if last100MessageStructs[i].Author.ID == s.State.User.ID && (last100MessageStructs[i].Content == "Shutting down..." || last100MessageStructs[i].Content == "I'm running!" || last100MessageStructs[i].Content == "Placeholder Text :)" || last100MessageStructs[i].Content == "Here's the messages you missed while I was offline:" || last100MessageStructs[i].Content == "Looks like you're up to date on your RSS feed!") {
@@ -194,7 +195,7 @@ func sendUpdate(s *discordgo.Session) {
 	out:
 		for i := 0; i < len(messageArray); i++ {
 			for j := 0; j < len(last100DiscordMessages); j++ {
-				if messageArray[i] == last100DiscordMessages[j] {
+				if messageArray[i] == last100DiscordMessages[j] || strings.Contains(last100DiscordMessages[j], messageArray[i]) {
 					log.Println("We have a matching message, shouldn't send an update!")
 					// Appends message to the front of botMessageArray
 					botMessageArray = append(botMessageArray, messageArray[0])
@@ -204,7 +205,7 @@ func sendUpdate(s *discordgo.Session) {
 		}
 	} else {
 		message = fmt.Sprintf("%s\n%s", feed.Items[0].Title, feed.Items[0].Link)
-		s.ChannelMessageSend(ChannelId, "This is my first run! Here's my latest RSS Message:")
+		s.ChannelMessageSend(ChannelId, "Here's my latest RSS Message:")
 		s.ChannelMessageSend(ChannelId, message)
 
 		botMessageArray = append(botMessageArray, message)
