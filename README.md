@@ -17,7 +17,7 @@ Next, run `go build`
 Once you've built the Go Binary (titled `discord-rss`), navigate to the location of the Binary and run it. You'll get an error because you're missing the necessary parameters for the Bot to function:
 
 The correct syntax looks something like this:
-`./discord-rss -t YOUR_BOT_TOKEN -u YOUR_RSS_FEED -c YOUR_DISCORD_CHANNEL_ID`
+`./discord-rss -t YOUR_BOT_TOKEN -u YOUR_RSS_FEED -c YOUR_DISCORD_CHANNEL_ID -timer INTEGER_VALUE`
 
 Where you'll replace the capitalized strings with your own values. 
 
@@ -25,7 +25,7 @@ Where you'll replace the capitalized strings with your own values.
 ### Docker
 Start by either building the image (`docker build . -t discord-rss:latest`), or by pulling it down from DockerHub (`docker pull howemando/discord-rss`).
 
-Next, run the image (`docker run -e BOT_TOKEN=YOUR_BOT_TOKEN -e RSS_URL=YOUR_RSS_FEED -e CHANNEL_ID=YOUR_DISCORD_CHANNEL_ID discord-rss`)
+Next, run the image (`docker run -e BOT_TOKEN=YOUR_BOT_TOKEN -e RSS_URL=YOUR_RSS_FEED -e CHANNEL_ID=YOUR_DISCORD_CHANNEL_ID -e TIMER_INT=YOUR_TIMER_INT discord-rss`)
 
 ## But what about Discord?
 To generate a Bot Token, you'll need to go to the [Discord Developer Portal](https://discord.com/developers/applications/). [This article](https://www.freecodecamp.org/news/create-a-discord-bot-with-python/) by [freecodecamp.org](https://www.freecodecamp.org) does a great job of going through the steps / permissions you'll need for a simple Discord Bot.

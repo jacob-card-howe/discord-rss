@@ -27,11 +27,10 @@ var last100DiscordMessages []string
 
 // Used to accept CLI Parameters
 var (
-	Token     string
-	Url       string
-	ChannelId string
-	// Can add this in later
-	// TickerTimer int
+	Token       string
+	Url         string
+	ChannelId   string
+	TickerTimer int
 )
 
 var message string
@@ -41,8 +40,7 @@ func init() {
 	flag.StringVar(&Token, "t", "", "Bot Token")
 	flag.StringVar(&Url, "u", "", "RSS Feed URL")
 	flag.StringVar(&ChannelId, "c", "", "Channel ID you want messages to post in")
-	// Can add this in later
-	// flag.IntVar(&TickerTimer, "timer", "", "Sets how long the auto parser will run for")
+	flag.IntVar(&TickerTimer, "timer", 0, "Sets how long the auto parser will run for")
 	flag.Parse()
 }
 
@@ -65,7 +63,7 @@ func messageCreated(s *discordgo.Session, m *discordgo.MessageCreate) {
 			log.Println("Error sending message:", err)
 		}
 	} else if m.Content == "!hours" {
-		_, err := s.ChannelMessageSend(ChannelId, "This bot runs from 9AM ET to 6PM ET. @Howe should write in logic to output my uptime on this command too!")
+		_, err := s.ChannelMessageSend(ChannelId, "This bot runs from 9AM ET to 5PM ET. @Howe should write in logic to output my uptime on this command too!")
 		if err != nil {
 			log.Println("Error sending message:", err)
 		}
@@ -91,11 +89,11 @@ func messageCreated(s *discordgo.Session, m *discordgo.MessageCreate) {
 		diff := parseTimestamp.Sub(parseOldMessage)
 		log.Printf("These messages were posted %s apart", diff)
 
-		if diff.Hours() < 9 { // Still should build in logic to allow for a dynamic integer here
+		if diff.Hours() < float64(TickerTimer) {
 			log.Println("The loop is still running! Skipping starting another loop.")
 		} else {
 			log.Println("Starting parser loop...")
-			ticker := time.NewTicker(30 * time.Second)
+			ticker := time.NewTicker(time.Duration(TickerTimer) * time.Second)
 			done := make(chan bool)
 
 			// Prevents the loop below from running overtop itself
@@ -114,7 +112,7 @@ func messageCreated(s *discordgo.Session, m *discordgo.MessageCreate) {
 				}
 			}()
 
-			time.Sleep(9 * time.Hour)
+			time.Sleep(time.Duration(TickerTimer) * time.Hour)
 			ticker.Stop()
 			done <- true
 			log.Println("Stopped ticker.")
@@ -145,7 +143,7 @@ func messageCreated(s *discordgo.Session, m *discordgo.MessageCreate) {
 				}
 			}()
 
-			time.Sleep(9 * time.Hour)
+			time.Sleep(time.Duration(TickerTimer) * time.Hour)
 			ticker.Stop()
 			done <- true
 			log.Println("Stopped ticker.")
