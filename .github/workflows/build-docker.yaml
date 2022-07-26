@@ -13,4 +13,4 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     - name: Build Discord RSS Docker Image
-      run: docker build . -- file Dockerfile --tag discord-rss:automated_build_$(date +%s)
+      run: docker build . --file Dockerfile --tag discord-rss:automated_build_$(date)
