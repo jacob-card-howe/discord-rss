@@ -1,4 +1,4 @@
-name: MacOS Monterey | Build Go Binary
+name: MacOS Monterey
 
 on:
   push:
@@ -8,6 +8,7 @@ on:
 
 jobs:
   build:
+    name: Build Go Binary
     runs-on: macos-12
 
     steps:

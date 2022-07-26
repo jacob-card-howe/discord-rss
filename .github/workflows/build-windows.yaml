@@ -1,4 +1,4 @@
-name: Windows Server 2022 | Build Go Binary
+name: Windows Server 2022
 
 on:
   push:
@@ -8,6 +8,7 @@ on:
 
 jobs:
   build:
+    name: Build Go Binary
     runs-on: windows-2022
 
     steps:
