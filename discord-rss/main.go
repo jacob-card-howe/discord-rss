@@ -42,7 +42,7 @@ func init() {
 	flag.StringVar(&Token, "t", "", "Bot Token")
 	flag.StringVar(&Url, "u", "", "RSS Feed URL")
 	flag.StringVar(&ChannelId, "c", "", "Channel ID you want messages to post in")
-	flag.IntVar(&TickerTimer, "timer", 0, "Sets how long the auto parser will run for")
+	flag.IntVar(&TickerTimer, "timer", 0, "Sets how long the auto parser will run for in hours")
 	flag.StringVar(&BasicAuthUsername, "user", "", "Allows you to pass in the 'Username' part of your BasicAuthentication credentials")
 	flag.StringVar(&BasicAuthPassword, "pass", "", "Allows you to pass in the 'Password' part of your BasicAuthentication credentials")
 	flag.Parse()
