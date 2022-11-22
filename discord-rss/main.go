@@ -27,10 +27,12 @@ var last100DiscordMessages []string
 
 // Used to accept CLI Parameters
 var (
-	Token       string
-	Url         string
-	ChannelId   string
-	TickerTimer int
+	Token             string
+	Url               string
+	ChannelId         string
+	TickerTimer       int
+	BasicAuthUsername string
+	BasicAuthPassword string
 )
 
 var message string
@@ -41,6 +43,8 @@ func init() {
 	flag.StringVar(&Url, "u", "", "RSS Feed URL")
 	flag.StringVar(&ChannelId, "c", "", "Channel ID you want messages to post in")
 	flag.IntVar(&TickerTimer, "timer", 0, "Sets how long the auto parser will run for")
+	flag.StringVar(&BasicAuthUsername, "user", "", "Allows you to pass in the 'Username' part of your BasicAuthentication credentials")
+	flag.StringVar(&BasicAuthPassword, "pass", "", "Allows you to pass in the 'Password' part of your BasicAuthentication credentials")
 	flag.Parse()
 }
 
@@ -254,10 +258,19 @@ func sendUpdate(s *discordgo.Session) {
 }
 
 // Sends 5 most recent messages on Bot Start Up
-func fiveRecentUpdate(s *discordgo.Session) {
+func mostRecentUpdate(s *discordgo.Session) {
 
 	// Initial Parse of RSS feed
 	feedParser := gofeed.NewParser()
+
+	// Checks for BasicAuth
+	if BasicAuthUsername != "" && BasicAuthPassword != "" {
+		feedParser.AuthConfig = &gofeed.Auth{
+			Username: BasicAuthUsername,
+			Password: BasicAuthPassword,
+		}
+	}
+
 	log.Println("Parsing RSS Feed...")
 	//feed, err := feedParser.ParseURL("http://lorem-rss.herokuapp.com/feed?unit=second&interval=30") // Great RSS feed for testing :)
 	feed, err := feedParser.ParseURL(Url)
@@ -266,18 +279,17 @@ func fiveRecentUpdate(s *discordgo.Session) {
 		return
 	}
 
-	// Grabs last 5 RSS Items and appends them to messageArray (Discord Character Limits)
+	// Grabs the most recent RSS message
 	log.Println("Generating messageArray...")
-	for i := 0; i < 5; i++ {
+	for i := 0; i < 1; i++ {
 		message = fmt.Sprintf("%s\n%s", feed.Items[i].Title, feed.Items[i].Link)
 		messageArray = append(messageArray, message)
 	}
 
-	// Formats messageArray into one big message instead of sending 5 individual messages
 	// It's noisy if we don't do it this way, and also exceeds Discord's character limit / message rate limit
 	log.Println("Generating bigMessage...")
 	convertToStrings := fmt.Sprintf(strings.Join(messageArray, "\n"))
-	bigMessage := fmt.Sprintf("Here are the 5 latest RSS Feed Items:\n\n%v", convertToStrings)
+	bigMessage := fmt.Sprintf("Here's the most recent RSS feed item:\n\n%v", convertToStrings)
 
 	s.ChannelMessageSend(ChannelId, bigMessage)
 }
@@ -303,7 +315,7 @@ func main() {
 		log.Println("error opening connection,", err)
 		return
 	} else {
-		fiveRecentUpdate(dg)
+		mostRecentUpdate(dg)
 	}
 
 	// Wait here until CTRL-C or other term signal is received.

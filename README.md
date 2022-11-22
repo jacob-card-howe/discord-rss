@@ -17,7 +17,7 @@ Next, run `go build`
 Once you've built the Go Binary (titled `discord-rss`), navigate to the location of the Binary and run it. You'll get an error because you're missing the necessary parameters for the Bot to function:
 
 The correct syntax looks something like this:
-`./discord-rss -t YOUR_BOT_TOKEN -u YOUR_RSS_FEED -c YOUR_DISCORD_CHANNEL_ID -timer INTEGER_VALUE`
+`./discord-rss -t YOUR_BOT_TOKEN -u YOUR_RSS_FEED -c YOUR_DISCORD_CHANNEL_ID -timer INTEGER_VALUE -user YOUR_USERNAME -pass YOUR_PASSWORD`
 
 Where you'll replace the capitalized strings with your own values. 
 
