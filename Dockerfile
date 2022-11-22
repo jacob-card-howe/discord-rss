@@ -3,9 +3,14 @@ FROM golang:1.16.3-alpine3.13
 WORKDIR /app
 COPY /discord-rss/ .
 RUN go mod download
-ENV BOT_TOKEN="defaultvalue"
-ENV RSS_URL="https://fake_url.com"
-ENV CHANNEL_ID="12345678910"
-ENV TIMER_INT=8
+
+# Discord RSS Set Up | Build Arguments:
+ARG bot_token
+ARG rss_url
+ARG channel_id
+ARG timer_int=8
+ARG username
+ARG password
+
 RUN go build
-CMD ./discord-rss -t $BOT_TOKEN -u $RSS_URL -c $CHANNEL_ID -timer $TIMER_INT
+CMD ./discord-rss -t $bot_token -u $rss_url -c $channel_id -timer $timer_int -user $username -pass $password
