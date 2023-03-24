@@ -1,6 +1,9 @@
 # discord-rss
 A simple Discord Bot that periodically parses provided RSS feeds and posts the latest updates to your favorite Discord Server.
 
+### Publication Status:
+[![Build & Publish Docker Image](https://github.com/jacob-card-howe/discord-rss/actions/workflows/publish-docker.yaml/badge.svg)](https://github.com/jacob-card-howe/discord-rss/actions/workflows/publish-docker.yaml)
+
 ## Usage
 This project is designed to be run either as a Docker container or as a Go Binary. Once the bot is running, you can use the following commands to interact with it from within your Discord Server:
 
@@ -23,7 +26,7 @@ Once you've built the Go Binary (titled `discord-rss`), navigate to the location
 The correct syntax looks something like this:
 `./discord-rss -t YOUR_BOT_TOKEN -u YOUR_RSS_FEED -c YOUR_DISCORD_CHANNEL_ID -timer INTEGER_VALUE -user YOUR_USERNAME -pass YOUR_PASSWORD`
 
-You can pass in multiple RSS feeds, and multiple channels by separating them with a comma (`,`). 
+You can pass in multiple RSS feeds, and multiple channels by separating them with a comma (`,`).
 
 > Multiple URLs example: `-u "https://www.reddit.com/r/golang/.rss,https://www.reddit.com/r/golang/.rss"`
 
@@ -40,7 +43,7 @@ Next, run the image (`docker run -e BOT_TOKEN=YOUR_BOT_TOKEN -e RSS_URL=YOUR_RSS
 ## But what about Discord?
 To generate a Bot Token, you'll need to go to the [Discord Developer Portal](https://discord.com/developers/applications/). [This article](https://www.freecodecamp.org/news/create-a-discord-bot-with-python/) by [freecodecamp.org](https://www.freecodecamp.org) does a great job of going through the steps / permissions you'll need for a simple Discord Bot.
 
-To get your `CHANNEL_ID`, you'll need to enable developer mode on your Discord Client. [This Support Documentation by Discord](https://support.discord.com/hc/en-us/articles/206346498-Where-can-I-find-my-User-Server-Message-ID-) does a really good walkthrough of how to set that up. 
+To get your `CHANNEL_ID`, you'll need to enable developer mode on your Discord Client. [This Support Documentation by Discord](https://support.discord.com/hc/en-us/articles/206346498-Where-can-I-find-my-User-Server-Message-ID-) does a really good walkthrough of how to set that up.
 
 ## Additional Documentation / References
 * [mmcdole/gofeed](https://github.com/mmcdole/gofeed)
