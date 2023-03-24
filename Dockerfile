@@ -1,4 +1,4 @@
-FROM golang:1.16.3-alpine3.13
+FROM golang:alpine3.17
 
 WORKDIR /app
 COPY /discord-rss/ .
