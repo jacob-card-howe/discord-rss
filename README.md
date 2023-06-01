@@ -9,36 +9,46 @@ This project is designed to be run either as a Docker container or as a Go Binar
 
 * `!help` - Displays a list of available commands
 * `!status` - Displays the current status of the Bot and RSS parser
-* `!pause` - Pauses the RSS parser
-* `!resume` - Resumes the RSS parser
-* `!add` - Adds a new RSS feed to the parser
-* `!remove` - Removes an RSS feed from the parser
+* `!pause` - Pauses the RSS parser in the channel this command is called
+* `!resume` - Resumes the RSS parser in the channel this command is called
+* `!add <url> <channel id> <timer> <username> <password>` - Adds a new RSS feed to the parser. For RSS feeds that do not use any basic authentication, you can pass in `""` for the `username` and `password` arguments.
+* `!remove` - Removes all RSS feeds from the parser in the channel this command is called
 
-### Running the project locally
+### Running the project via Go Binary
 First, you'll need to be using [Go version 1.16](https://golang.org/doc/go1.16) or later.
 
 Kick things off by downloading any dependencies from `go.mod` by entering `go download` into your terminal.
 
 Next, run `go build`
 
-Once you've built the Go Binary (titled `discord-rss`), navigate to the location of the Binary and run it. You'll get an error because you're missing the necessary parameters for the Bot to function:
+Once you've built the Go Binary (titled `discord-rss`), navigate to the location of the Binary and run it. You'll get an error because you're missing the necessary parameters for the Bot to function.
 
-The correct syntax looks something like this:
-`./discord-rss -t YOUR_BOT_TOKEN -u YOUR_RSS_FEED -c YOUR_DISCORD_CHANNEL_ID -timer INTEGER_VALUE -user YOUR_USERNAME -pass YOUR_PASSWORD`
+For use with multiple RSS feeds, you'll need to create a CSV file with the following format. The first line of the CSV serves as the defaults for all RSS feeds should you leave a column blank. For instance, if you want to parse all of your RSS feeds every 60 seconds, you can leave the `timer` column blank for all of your RSS feeds after the first row. 
 
-You can pass in multiple RSS feeds, and multiple channels by separating them with a comma (`,`).
+The CSV below will parse the first two RSS feeds every 60 seconds and send updates to channel `123456789`. The third RSS feed will be parsed every 45 seconds and send updates to channel `987654321:
 
-> Multiple URLs example: `-u "https://www.reddit.com/r/golang/.rss,https://www.reddit.com/r/golang/.rss"`
+```csv
+,123456789,60,,
+https://example.com,,,,
+https://example2.com,,,,
+https://example3.com,987654321,45,,
+```
 
-> Multiple Channels example: `-c "123456789,987654321"`
+To use the CSV file, run the following command:
 
-If you pass in an uneven number of URLs and Channels, the Bot will default to the first Channel for all provided URLs.
+> `./discord-rss -t YOUR_BOT_TOKEN -f YOUR/CSV/PATH`
 
+Alternatively, if you only want to make use of a single RSS feed in a single channel, you can run the following command:
+
+> `./discord-rss -t YOUR_BOT_TOKEN -u YOUR_RSS_FEED -c YOUR_DISCORD_CHANNEL_ID -i YOUR_TIMER_INT -user YOUR_RSS_FEED_USERNAME -pass YOUR_RSS_FEED_PASSWORD`
 
 ### Running the project via Docker
-Start by either building the image (`docker build . -t discord-rss:latest`), or by pulling it down from DockerHub (`docker pull howemando/discord-rss`).
+To run `discord-rss` on Docker, you'll need to leverage a CSV file (`feeds.csv`) to define your RSS feeds. Start by building the image
 
-Next, run the image (`docker run -e BOT_TOKEN=YOUR_BOT_TOKEN -e RSS_URL=YOUR_RSS_FEED -e CHANNEL_ID=YOUR_DISCORD_CHANNEL_ID -e TIMER_INT=YOUR_TIMER_INT discord-rss`)
+> `docker build . -t discord-rss:latest`
+
+Next, run the image 
+> `docker run -e BOT_TOKEN=YOUR_BOT_TOKEN -e PATH_TO_CSV=YOUR/CSV/PATH discord-rss`
 
 ## But what about Discord?
 To generate a Bot Token, you'll need to go to the [Discord Developer Portal](https://discord.com/developers/applications/). [This article](https://www.freecodecamp.org/news/create-a-discord-bot-with-python/) by [freecodecamp.org](https://www.freecodecamp.org) does a great job of going through the steps / permissions you'll need for a simple Discord Bot.
