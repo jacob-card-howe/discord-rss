@@ -89,7 +89,7 @@ func getFeedInfo(channelId string) RSSFeed {
 
 // !help command
 func helpCommand() string {
-	return "**Commands:**\n`!status` - Check if the bot is running\n`!help` - Display this message\n`!pause` - Pause RSS feed updates (_not implemented_)\n`!resume` - Resume RSS feed updates (_not implemented_)\n`!update` - Manually trigger RSS feed updates (_not implemented_)\n`!add` - Add a new RSS feeds (_not implemented_)\n`!remove` - Remove an RSS feeds (_not implemented_)\n`!list` - List RSS feeds (_not implemented_)"
+	return "**Commands:**\n`!help` - Display this message\n`!status` - Check if the bot is running, and if your RSS feed is actively being parsed\n`!pause` - Pause RSS feed updates in a channel \n`!resume` - Resume RSS feed updates in a channel\n`!update` - Manually trigger RSS feed updates\n`!add` - Add a new RSS feeds. See documentation for syntax\n`!remove` - Remove an RSS feed from a channel\n`!list` - List all RSS feeds being parsed by the bot"
 }
 
 // !status command
@@ -471,8 +471,15 @@ func main() {
 	<-sc
 
 	// Cleanly close down the active Discord session
+	shutdownMessage := "**_Discord RSS bot is now shutting down..._** :zzz:\n\n**WARNING**: Any RSS feeds added via the `!add` command will not persist on the next bot start up. Here's a list of all the RSS feeds that were being parsed:\n\n"
+
+	for i, feed := range rssFeeds {
+		shutdownMessage += fmt.Sprintf("%d. %s\n", i+1, feed.Url)
+	}
+
+	// Send shutdownMessage to all channels
 	for i := 0; i < len(rssFeeds); i++ {
-		dg.ChannelMessageSend(rssFeeds[i].ChannelId, "**_Discord RSS bot is now shutting down..._** :zzz:\n\n**WARNING**: Any RSS feeds added via the `!add` command will not persist on the next bot start up. Here's a list of all the RSS feeds that were being parsed:\n\n") //@TODO: Build this list of URLs
+		dg.ChannelMessageSend(rssFeeds[i].ChannelId, shutdownMessage)
 	}
 	dg.Close()
 }
