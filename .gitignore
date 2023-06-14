@@ -1,3 +1,5 @@
 # Ignores any precompiled executables
 discord-rss/discord-rss*
+
+# Ignores any changes to feeds.csv
 discord-rss/feeds.csv
