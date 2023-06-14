@@ -1,12 +1,16 @@
 package main
 
 import (
+	"encoding/csv"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -14,151 +18,233 @@ import (
 	"github.com/mmcdole/gofeed"
 )
 
-// Used to keep track of already sent messages
-// Each element in the outer array is an array of strings representing messages sent to a given channel
+// Declare a global wait group to ensure all goroutines are finished before exiting
 
-var messageQueue [][]string     // Messages to be sent
-var previousMessages [][]string // Messages that have been sent
-
-// Set variables for flags passed to discord-rss
-type stringSlice []string
-
-func (s *stringSlice) String() string {
-	return strings.Join(*s, ", ")
+// A struct to define what an RSS Feed looks like
+type RSSFeed struct {
+	Url          string // The URL of the RSS feed (i.e. https://example.com/rss)
+	ChannelId    string // The Discord Channel ID to send RSS feed updates to
+	Timer        int    // The interval (in seconds) in which the RSS parser will check a feed for updates
+	UserName     string // A basic auth username for the provided RSS feed
+	Password     string // A basic auth password for the provided RSS feed
+	ActiveStatus bool   // A boolean to track if the RSS feed should be actively parsed or not
 }
 
-func (s *stringSlice) Set(value string) error {
-	*s = append(*s, strings.Split(value, ",")...)
-	return nil
+// A struct to define a slice of RSS feeds to prevent concurrent access the slice
+type RSSFeeds struct {
+	mutex    sync.Mutex // A mutex to ensure only one thread can access the slice at a time
+	RSSFeeds []RSSFeed  // The slice of RSS feeds
 }
 
+// A struct to define a slice of Discord messages to prevent concurrent access to the slice
+type MessageQueue struct {
+	mutex        sync.Mutex          // A mutex to ensure only one thread can access the slice at a time
+	MessageQueue map[string][]string // The slice of Discord messages
+}
+
+// Initializing variables for RSS feeds and Message Queue
+var rssFeeds RSSFeeds
+var messageQueue MessageQueue
+
+// Variables used for command line parameters
 var (
-	Token             string
-	Urls              stringSlice
-	ChannelIds        stringSlice
-	TickerTimer       int
-	BasicAuthUsername string
-	BasicAuthPassword string
+	Token             string // Discord Bot Authentication Token
+	FilePath          string // Path to CSV file containing RSS feed information
+	Url               string // URL of a SINGLE RSS feed
+	ChannelId         string // A SINGLE Discord Channel ID to send RSS feed updates to
+	TickerTimer       int    // A SINGLE interval to parse a SINGLE RSS feed (in seconds)
+	BasicAuthUsername string // A SINGLE basic auth username for the RSS feed provided by Url
+	BasicAuthPassword string // A SINGLE basic auth password for the RSS feed provided by Url
 )
 
-var ticker *time.Ticker // Used to keep track of the ticker across multiple functions
-
-// Initializes the provided flags
+// Initialize flags for command line parameters
 func init() {
 	flag.StringVar(&Token, "t", "", "Discord authentication token")
-	flag.Var(&Urls, "u", "Comma-separated list of RSS feed URLs")
-	flag.Var(&ChannelIds, "c", "Comma-separated list of Discord channel IDs")
-	flag.IntVar(&TickerTimer, "timer", 60, "Time between feed checks in seconds")
-	flag.StringVar(&BasicAuthUsername, "user", "", "Basic auth username")
-	flag.StringVar(&BasicAuthPassword, "pass", "", "Basic auth password")
+	flag.StringVar(&FilePath, "f", "", "Path to CSV file containing information for multiple RSS feeds")
+	flag.StringVar(&Url, "u", "", "URL of a SINGLE RSS feed (incompatible with -f)")
+	flag.StringVar(&ChannelId, "c", "", "A SINGLE Discord Channel ID to send RSS feed updates to (incompatible with -f)")
+	flag.IntVar(&TickerTimer, "timer", 60, "A SINGLE interval to parse a SINGLE RSS feed in seconds (incompatible with -f, defaults to 60 seconds)")
+	flag.StringVar(&BasicAuthUsername, "user", "", "A SINGLE basic auth username for the RSS feed provided by Url (incompatible with -f)")
+	flag.StringVar(&BasicAuthPassword, "pass", "", "A SINGLE basic auth password for the RSS feed provided by Url (incompatible with -f)")
 
 	flag.Parse()
 }
 
-func stopTicker() {
-	if ticker != nil {
-		ticker.Stop()
+// Updates the RSSFeeds slice with a new RSSFeed struct
+func updateRSSFeeds(feed *RSSFeed) {
+	// Search for the feed by URL in the RSSFeeds slice
+	for i, f := range rssFeeds.RSSFeeds {
+		if f.Url == feed.Url {
+			// Update the ActiveStatus of the found feed
+			rssFeeds.mutex.Lock()
+			rssFeeds.RSSFeeds[i].ActiveStatus = feed.ActiveStatus
+			rssFeeds.mutex.Unlock()
+		}
+	}
+
+	// Feed not found, append it to the RSSFeeds slice
+	rssFeeds.RSSFeeds = append(rssFeeds.RSSFeeds, *feed)
+}
+
+// Updates the MessageQueue slice with the latest RSS feed item
+func updateMessageQueue(url string, message string) {
+	messageQueue.mutex.Lock()
+	defer messageQueue.mutex.Unlock()
+
+	if len(messageQueue.MessageQueue[url]) > 0 {
+		messageQueue.MessageQueue[url] = nil
+	}
+
+	messageQueue.MessageQueue[url] = append(messageQueue.MessageQueue[url], message)
+}
+
+// Compare messages to be sent to Discord with messages that have already been sent to avoid duplicates
+func compareMessages(s *discordgo.Session, url string, channelId string) {
+
+	// Fetch the last 50 messages from the Discord channel
+	sentMessages, err := s.ChannelMessages(channelId, 50, "", "", "")
+	if err != nil {
+		log.Println("Error fetching messages from Discord channel:", err)
+		return
+	}
+
+	// Create a map of previous messages for faster lookup
+	previousMessagesMap := make(map[string]bool)
+	for i := 0; i < len(sentMessages); i++ {
+		if sentMessages[i].Author.ID == s.State.User.ID {
+			message := sentMessages[i].Content
+			previousMessagesMap[message] = true
+		}
+	}
+
+	// Check if the latest message has already been sent to Discord
+	if previousMessagesMap[messageQueue.MessageQueue[url][0]] {
+		log.Printf("Message already sent to Discord channel, skipping %s", url)
+	} else {
+		// Send the latest message to Discord
+		log.Printf("Sending message for %s to Discord channel %s", url, channelId)
+		_, err := s.ChannelMessageSend(channelId, messageQueue.MessageQueue[url][0])
+		if err != nil {
+			log.Println("Error sending message to Discord channel:", err)
+			return
+		}
 	}
 }
 
-func startTicker(s *discordgo.Session, currentUrl string, currentChannel string, feedParser *gofeed.Parser) {
-	ticker = time.NewTicker(time.Duration(TickerTimer) * time.Second)
+// Parses a given RSS feed and sends the latest item for comparison
+func parseRSSFeed(s *discordgo.Session, feed *RSSFeed) {
+	ticker := time.Tick(time.Duration(feed.Timer) * time.Second)
+	backoff := 1
+	for {
+		select {
+		case <-ticker:
+			// Create new feed parser
+			feedParser := gofeed.NewParser()
 
-	go func() {
-		for {
-			select {
-			case <-ticker.C:
-				getMessageHistory(s, currentUrl, currentChannel, feedParser)
+			// Configure parser with credentials if needed
+			if feed.UserName != "" && feed.Password != "" {
+				feedParser.AuthConfig = &gofeed.Auth{
+					Username: feed.UserName,
+					Password: feed.Password,
+				}
 			}
-		}
-	}()
-}
 
-func addFeed(message string) string {
-	var url string
-	var channelID string
-	_, err := fmt.Sscanf(message, "!add %s %s", &url, &channelID)
-	if err != nil {
-		return "Error: Invalid input"
-	}
+			// Configures a backoff should the RSS feed be unavailable
+			feedItems, err := feedParser.ParseURL(feed.Url)
+			if err != nil {
+				log.Printf("Error parsing %s: %s", feed.Url, err)
+				log.Printf("Retrying in %d seconds...", backoff+feed.Timer)
+				time.Sleep(time.Duration(backoff) * time.Second)
+				backoff *= 2
+				continue
+			}
 
-	Urls = append(Urls, url)
-	ChannelIds = append(ChannelIds, channelID)
+			// Reset backoff if no error
+			backoff = 1
 
-	return "**_RSS feed added_**"
-}
+			// Format most recent item in RSS Feed
+			message := fmt.Sprintf("**%s**\n%s", feedItems.Title, feedItems.Items[0].Link)
 
-func removeFeed(message string) string {
-	var url string
-	var channelID string
-	_, err := fmt.Sscanf(message, "!remove %s %s", &url, &channelID)
-	if err != nil {
-		return "Error: Invalid input"
-	}
+			// Update the MessageQueue slice with the latest item
+			updateMessageQueue(feed.Url, message)
 
-	// Find the index of the URL and Channel ID to remove
-	var index int = -1
-	for i, u := range Urls {
-		if u == url && ChannelIds[i] == channelID {
-			index = i
-			break
+			// Compare messages to ensure no duplicates
+			compareMessages(s, feed.Url, feed.ChannelId)
 		}
 	}
-
-	if index == -1 {
-		return "Error: Feed not found"
-	}
-
-	// Remove the URL and Channel ID from the slice
-	Urls = append(Urls[:index], Urls[index+1:]...)
-	ChannelIds = append(ChannelIds[:index], ChannelIds[index+1:]...)
-
-	return "**_RSS feed removed_**"
 }
 
-func discordMessageSentInChannel(s *discordgo.Session, m *discordgo.MessageCreate) {
+// Configures RSS Feed parsers and starts them concurrently
+func configureRSSFeeds(s *discordgo.Session) {
+	// Initialize the MessageQueue map
+	messageQueue.MessageQueue = make(map[string][]string)
+
+	rssFeeds.mutex.Lock()
+	defer rssFeeds.mutex.Unlock()
+	for _, feed := range rssFeeds.RSSFeeds {
+		if !feed.ActiveStatus {
+			continue
+		}
+
+		// Creates a copy of the feed in memory for manipulation
+		localFeed := feed
+
+		go func(feed *RSSFeed) {
+			parseRSSFeed(s, feed)
+		}(&localFeed)
+	}
+}
+
+// Listens for commands prefixed by `!` coming from Discord
+func discordCommandRecieved(s *discordgo.Session, m *discordgo.MessageCreate) {
+	// Ignore messages sent by the bot itself
 	if m.Author.ID == s.State.User.ID {
 		return
 	}
 
+	// Look for messages that are prefixed with `!`
 	if strings.HasPrefix(m.Content, "!") {
+		// Initialize the response variable
 		var response string
 
 		switch {
 		case strings.HasPrefix(m.Content, "!help"):
-			response = "**Commands:**\n`!status` - Check if the bot is running\n`!help` - Display this message\n`!pause` - Pause RSS feed updates (_not implemented_)\n`!resume` - Resume RSS feed updates (_not implemented_)\n`!update` - Manually trigger RSS feed updates (_not implemented_)\n`!add` - Add a new RSS feeds (_not implemented_)\n`!remove` - Remove an RSS feeds (_not implemented_)\n`!list` - List RSS feeds (_not implemented_)"
+			response = "**Commands:**\n`!help` - Display this message\n`!status` - Check if the bot is running, and if your RSS feed is actively being parsed\n`!list` - List all RSS feeds being parsed by the bot"
 		case strings.HasPrefix(m.Content, "!status"):
-			if ticker != nil {
-				response = fmt.Sprintf("**:white_check_mark: RSS Bot is currently running!**\n**:alarm_clock: RSS Feed Parser is currently running every %d seconds**", TickerTimer)
-			} else {
-				response = "**:white_check_mark: RSS Bot is currently running!**\n**:x: RSS Feed Parser is currently not running.**\n\nTo start the RSS Feed Parser, use the `!update` or `!resume` command."
+			var url string
+			_, err := fmt.Sscanf(m.Content, "!status %s", &url)
+			if err != nil {
+				log.Println("Error grabbing URL from status command:", err)
+				response = ":x: Error fetching status, please follow the syntax provided in the documentation and check the logs for more information."
 			}
-		case strings.HasPrefix(m.Content, "!add"):
-			response = addFeed(m.Content)
-			if response == "**_RSS feed added_**" {
-				stopTicker()
-				parseRSSFeeds(s)
+
+			for _, feed := range rssFeeds.RSSFeeds {
+				if feed.Url == url {
+					if feed.ActiveStatus {
+						response = fmt.Sprintf(":white_check_mark: %s is currently being parsed in <#%s>", feed.Url, feed.ChannelId)
+						break
+					} else {
+						response = fmt.Sprintf(":x: %s is not currently being parsed in <#%s>", feed.Url, feed.ChannelId)
+						break
+					}
+				}
 			}
-		case strings.HasPrefix(m.Content, "!remove"):
-			response = removeFeed(m.Content)
-			if response == "**_RSS feed removed_**" {
-				stopTicker()
-				parseRSSFeeds(s)
-			}
-		case strings.HasPrefix(m.Content, "!pause"):
-			stopTicker()
-			response = "**:pause_button: RSS Feed Parser has been paused.**\n\nTo resume the RSS Feed Parser, use the `!update` or `!resume` command."
-		case strings.HasPrefix(m.Content, "!resume"):
-			response = "**:arrow_forward: RSS Feed Parser has been resumed.**"
-			parseRSSFeeds(s)
-		case strings.HasPrefix(m.Content, "!update"):
-			response = "**:muscle: RSS Feed Parser has been manually triggered.**"
-			stopTicker()
-			parseRSSFeeds(s)
 		case strings.HasPrefix(m.Content, "!list"):
-			response = "**RSS Feeds:**\n"
-			for i, url := range Urls {
-				response += fmt.Sprintf("%v. `%s` - %s\n", i+1, ChannelIds[i], url)
+			var channelList string
+			loopCount := 0
+			rssFeeds.mutex.Lock()
+			for _, feed := range rssFeeds.RSSFeeds {
+				if feed.ActiveStatus && feed.ChannelId == m.ChannelID {
+					channelList += fmt.Sprintf("%d. %s\n", loopCount+1, feed.Url)
+				}
+			}
+
+			if channelList == "" {
+				response = ":x: No RSS feeds are currently being parsed in this channel."
+				rssFeeds.mutex.Unlock()
+			} else {
+				response = fmt.Sprintf("**RSS Feeds being parsed in <#%s>**\n%s", m.ChannelID, channelList)
+				rssFeeds.mutex.Unlock()
 			}
 		}
 
@@ -166,144 +252,143 @@ func discordMessageSentInChannel(s *discordgo.Session, m *discordgo.MessageCreat
 	}
 }
 
-func getMessageHistory(s *discordgo.Session, url string, channel string, feedParser *gofeed.Parser) {
-	log.Printf("Getting message history in %s...", channel)
-	previousMessagesStructs, err := s.ChannelMessages(channel, 100, "", "", "")
+// Reads CSVs and builds a slice of RSSFeed structs
+func readCSV(path string) error {
+	// Attempt to open the CSV file
+	file, err := os.Open(path)
 	if err != nil {
-		log.Printf("Error getting message history: %s", err)
-		return
+		return err
 	}
+	defer file.Close()
 
-	// Create a map of previous messages for faster lookup
-	previousMessagesMap := make(map[string]bool)
-	for i := 0; i < len(previousMessagesStructs); i++ {
-		if previousMessagesStructs[i].Author.ID == s.State.User.ID {
-			message := previousMessagesStructs[i].Content
-			previousMessagesMap[message] = true
-		}
-	}
+	// Create a new CSV reader
+	reader := csv.NewReader(file)
 
-	log.Printf("Checking for RSS feed updates for %s", url)
-	feed, err := feedParser.ParseURL(url)
+	// Read the header line to extract default values for blank RSS Feed fields
+	header, err := reader.Read()
 	if err != nil {
-		log.Printf("Error parsing RSS feed: %s", err)
-		return
-	}
-
-	message := fmt.Sprintf("**%s**\n%s", feed.Items[0].Title, feed.Items[0].Link)
-
-	// Check if the message has already been sent
-	if previousMessagesMap[message] {
-		log.Println("Message already sent, not sending again!")
-		//log.Println("This was the message: ", message) // Commenting out to prevent flood of logs
-		return
-	}
-
-	log.Printf("No previous messages found, sending message in %s...", channel)
-	s.ChannelMessageSend(channel, message)
-
-	// Add the message to the previous messages map
-	previousMessagesMap[message] = true
-
-	// Clear previous messages if there are too many
-	if len(previousMessagesMap) > 100 {
-		previousMessagesMap = make(map[string]bool)
-	}
-}
-
-func parseRSSFeeds(s *discordgo.Session) {
-	// Create a new RSS feed parser
-	feedParser := gofeed.NewParser()
-
-	// Loop through each RSS feed URL
-	for i := 0; i < len(Urls); i++ {
-
-		currentUrl := Urls[i]
-		currentChannel := ChannelIds[i]
-
-		if BasicAuthUsername != "" && BasicAuthPassword != "" {
-			feedParser.AuthConfig = &gofeed.Auth{
-				Username: BasicAuthUsername,
-				Password: BasicAuthPassword,
-			}
+		if err == io.EOF {
+			return nil
 		}
+		return err
+	}
 
-		// Parse the RSS feed
-		log.Printf("Parsing RSS feed: %s", currentUrl)
-		feed, err := feedParser.ParseURL(currentUrl)
+	// Set default values from header line
+	defaultUrl := header[0]
+	defaultChannelId := header[1]
+	defaultTimer, _ := strconv.Atoi(header[2])
+	defaultUserName := header[3]
+	defaultPassword := header[4]
+
+	// Read remaining lines of CSV file
+	for {
+		line, err := reader.Read()
 		if err != nil {
-			log.Printf("Error parsing RSS feed: %s", err)
-			return
+			if err == io.EOF {
+				break
+			}
+			return err
 		}
 
-		// Grab the most recent RSS message
-		log.Printf("Grabbing most recent RSS message from feed: %s", currentUrl)
-		message := fmt.Sprintf("**%s**\n%s", feed.Items[0].Title, feed.Items[0].Link)
+		url := line[0]
+		channelId := line[1]
+		timer, _ := strconv.Atoi(line[2])
+		username := line[3]
+		password := line[4]
 
-		// Append message to messageQueue
-		messageQueue = append(messageQueue, []string{message})
+		// Populate an RSSFeed object with the values from the CSV file
+		if url == "" {
+			url = defaultUrl
+		}
+		if channelId == "" {
+			channelId = defaultChannelId
+		}
+		if timer == 0 {
+			timer = defaultTimer
+		}
+		if username == "" {
+			username = defaultUserName
+		}
+		if password == "" {
+			password = defaultPassword
+		}
 
-		// Generate a big message for initial RSS feed update
-		log.Println("Generating initial RSS feed update message...")
-		convertToStrings := fmt.Sprintf(strings.Join(messageQueue[i], "\n"))
-		bigMessage := fmt.Sprintf("Here's the most recent RSS feed item:\n\n%v", convertToStrings)
+		feed := RSSFeed{
+			Url:          url,
+			ChannelId:    channelId,
+			Timer:        timer,
+			UserName:     username,
+			Password:     password,
+			ActiveStatus: true,
+		}
 
-		s.ChannelMessageSend(currentChannel, bigMessage)
-
-		// Start a ticker to check for new RSS feed items
-		log.Printf("Starting ticker to check for new RSS feed items every %d seconds...", TickerTimer)
-
-		startTicker(s, currentUrl, currentChannel, feedParser)
+		// Append the RSSFeed struct to the FeedsSlice
+		updateRSSFeeds(&feed)
 	}
+	// log.Println(rssFeeds.RSSFeeds)
+	return nil
 }
 
+// Main function
 func main() {
-	// Check that all required flags are set
-	if Token == "" || len(Urls) == 0 || len(ChannelIds) == 0 {
+	// Check that the user has provided a Discord authentication token & RSS feed information
+	if Token == "" || (FilePath == "" && (Url == "" || ChannelId == "")) {
+		log.Println("You must provide a Discord authentication token and RSS feed information.")
 		flag.Usage()
 		return
 	}
 
-	// Check that the number of URLs and channel IDs match
-	if len(ChannelIds) < len(Urls) {
-		log.Printf("Warning: More URLs than channel IDs provided. The Discord RSS bot will only post RSS feeds to the first channel provided: %s", ChannelIds[0])
-		firstChannelId := ChannelIds[0]
-		for len(ChannelIds) < len(Urls) {
-			ChannelIds = append([]string{firstChannelId}, ChannelIds...)
+	// If the user has provided a CSV file, parse it and add each RSS feed to the FeedsSlice
+	if FilePath != "" {
+		log.Printf("Reading CSV file at %s", FilePath)
+		err := readCSV(FilePath)
+		if err != nil {
+			log.Fatal("Error opening CSV file: ", err)
 		}
+	} else {
+		// If no CSV provided, create a new RSSFeed struct and add it to the FeedsSlice
+		feed := RSSFeed{
+			Url:          Url,
+			ChannelId:    ChannelId,
+			Timer:        TickerTimer,
+			UserName:     BasicAuthUsername,
+			Password:     BasicAuthPassword,
+			ActiveStatus: true,
+		}
+
+		// Append the RSSFeed struct to the FeedsSlice
+		updateRSSFeeds(&feed)
 	}
 
-	// Create Discord Session using
+	// Create a new Discord session using the provided authentication token
 	dg, err := discordgo.New("Bot " + Token)
 	if err != nil {
-		log.Fatal("Error creating Discord Session: ", err)
+		log.Fatal("Error creating Discord session: ", err)
 	}
 
-	// Registers the discordMessageSentInChannel function as a callback for a MessageCreated event
-	dg.AddHandler(discordMessageSentInChannel)
-
-	// Sets the intentions of the bot
+	// Identify the intents that the bot will use
 	dg.Identify.Intents = discordgo.IntentsGuildMessages
 
-	// Open a websocket connection to Discord and begin listening
+	// Listen for commands prefixed by `!` coming from Discord
+	dg.AddHandler(discordCommandRecieved)
+
+	// Open a websocket connection to Discord and begin parsing RSS feeds
 	err = dg.Open()
 	if err != nil {
-		log.Fatal("Error opening connection: ", err)
+		log.Fatal("Error opening Discord websocket: ", err)
 	} else {
-		parseRSSFeeds(dg)
+		log.Println("Discord websocket connection opened successfully")
+		go configureRSSFeeds(dg)
 	}
 
 	// Wait here until CTRL-C or other term signal is received
-	log.Println("Discord RSS bot is now running. Press CTRL-C to exit.")
-	log.Printf("Your provided RSS feed URLs will be parsed every %d seconds.", TickerTimer)
+	log.Println("RSS feed parser is now running. Press CTRL-C to exit.")
 
 	sc := make(chan os.Signal, 1)
-	signal.Notify(sc, syscall.SIGINT, syscall.SIGTERM, os.Interrupt, os.Kill)
+	signal.Notify(sc, syscall.SIGINT, syscall.SIGTERM, os.Interrupt)
 	<-sc
 
-	// Cleanly close down the Discord session
-	for i := 0; i < len(ChannelIds); i++ {
-		dg.ChannelMessageSend(ChannelIds[i], "**_Discord RSS bot is now shutting down..._** :zzz:\n\n**WARNING**: Any RSS feeds added via the `!add` command will not persist on the next bot start up. Here's a list of all the RSS feeds that were being parsed:\n\n"+strings.Join(Urls, "\n"))
-	}
+	// Close the Discord websocket connection
+	log.Println("Closing Discord websocket connection...")
 	dg.Close()
 }

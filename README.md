@@ -8,35 +8,47 @@ A simple Discord Bot that periodically parses provided RSS feeds and posts the l
 This project is designed to be run either as a Docker container or as a Go Binary. Once the bot is running, you can use the following commands to interact with it from within your Discord Server:
 
 * `!help` - Displays a list of available commands
-* `!status` - Displays the current status of the Bot and RSS parser
-* `!pause` - Pauses the RSS parser
-* `!resume` - Resumes the RSS parser
-* `!add` - Adds a new RSS feed to the parser
-* `!remove` - Removes an RSS feed from the parser
+* `!status <RSS feed URL>` - Displays the current status of the Bot and RSS parser for a given URL
+* `!list` - Displays a list of all RSS feeds currently being parsed in the channel this command is run in
 
-### Running the project locally
-First, you'll need to be using [Go version 1.16](https://golang.org/doc/go1.16) or later.
+### `feeds.csv`
+The `feeds.csv` file is used to store RSS feed information for `discord-rss` to parse. This file can have any name, but must follow the following format:
+```csv
+DEFAULT_URL,DEFAULT_CHANNEL_ID,DEFAULT_TIMER_INT,DEFAULT_USERNAME,DEFAULT_PASSWORD
+https://www.example.com/rss,123456789,60,username,password
+https://www.example2.com/rss,,,,
+https://www.example3.com/rss,987654321,10,,
+https://www.example4.com/rss,,,,another_password
+```
+The first line of the CSV exists for default values. If a value is not provided for a given RSS feed, the default value will be used instead. If a default value is not provided, and you do not provide a value for _at least_ the `url`, `channel id` and `timer` for a given RSS feed, `discord-rss` will not parse that feed.
 
-Kick things off by downloading any dependencies from `go.mod` by entering `go download` into your terminal.
+Here's a quick breakdown of what each line in the provided CSV is doing:
+1. This line is setting default values for the rest of the CSV. **Note**: Be sure to use proper values for each default or `discord-rss` will not parse your RSS feeds.
+1. This line is parsing the RSS feed at `https://www.example.com/rss` and posting updates to the Discord Channel with ID `123456789` every `60` seconds. This line also provides a username and password for the RSS feed, which is used for authentication.
+1. This line is parsing the RSS feed at `https://www.example2.com/rss`. This line does not provide values for `channel id`, `timer`, `username` or `password`, so the default values will be used instead.
+1. This line is parsing the RSS feed at `https://www.example3.com/rss`. This line specifies a `987654321` as its channel ID, and a 10 second interval timer. This line will use the default values for `username` and `password`.
+1. This line is parsing the RSS feed at `https://www.example4.com/rss`. This line uses default values for all fields except `url` and `password`.
 
-Next, run `go build`
+### Running `discord-rss` from its binary
+If you're running `discord-rss` from its binary, you'll need to either compile it yourself using `go build`, or download the latest version from the [`discord-rss` Releases page](https://github.com/jacob-card-howe/discord-rss/releases).
 
-Once you've built the Go Binary (titled `discord-rss`), navigate to the location of the Binary and run it. You'll get an error because you're missing the necessary parameters for the Bot to function:
+The ***recommended*** syntax for running the project is:
+```sh
+./discord-rss -t YOUR_BOT_TOKEN -f "/path/to/your/feeds/file.csv"
+```
 
-The correct syntax looks something like this:
-`./discord-rss -t YOUR_BOT_TOKEN -u YOUR_RSS_FEED -c YOUR_DISCORD_CHANNEL_ID -timer INTEGER_VALUE -user YOUR_USERNAME -pass YOUR_PASSWORD`
+If you are only parsing a single RSS feed, you can use the following syntax:
+```sh
+./discord-rss -t YOUR_BOT_TOKEN -u YOUR_RSS_FEED_URL -c YOUR_DISCORD_CHANNEL_ID -timer INTEGER_VALUE -user YOUR_USERNAME -pass YOUR_PASSWORD
+```
+> **⚠️ _Note:_** You cannot use both the `-f` and `-u` flags at the same time. If you do, `discord-rss` will default to using the `-f` flag.
+### Running `discord-rss` from a Docker container
+If you are building the Docker image yourself (`docker build . -t discord-rss:latest`), you can put your `feeds.csv` file in the `discord-rss/` subdirectory of this project. This file will be copied into your local Docker image upon build.
 
-You can pass in multiple RSS feeds, and multiple channels by separating them with a comma (`,`).
-
-> Multiple URLs example: `-u "https://www.reddit.com/r/golang/.rss,https://www.reddit.com/r/golang/.rss"`
-
-> Multiple Channels example: `-c "123456789,987654321"`
-
-If you pass in an uneven number of URLs and Channels, the Bot will default to the first Channel for all provided URLs.
-
-
-### Running the project via Docker
-Start by either building the image (`docker build . -t discord-rss:latest`), or by pulling it down from DockerHub (`docker pull howemando/discord-rss`).
+Otherwise, pull down the latest version of `discord-rss` (`docker pull howemando/discord-rss`) and run the image with the following command:
+```sh
+docker run -d -e BOT_TOKEN=YOUR_BOT_TOKEN -v "/path/to/your/feeds/file.csv:/app/feeds.csv" howemando/discord-rss
+```
 
 Next, run the image (`docker run -e BOT_TOKEN=YOUR_BOT_TOKEN -e RSS_URL=YOUR_RSS_FEED -e CHANNEL_ID=YOUR_DISCORD_CHANNEL_ID -e TIMER_INT=YOUR_TIMER_INT discord-rss`)
 
