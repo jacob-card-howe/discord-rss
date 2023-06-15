@@ -42,15 +42,21 @@ If you are only parsing a single RSS feed, you can use the following syntax:
 ./discord-rss -t YOUR_BOT_TOKEN -u YOUR_RSS_FEED_URL -c YOUR_DISCORD_CHANNEL_ID -timer INTEGER_VALUE -user YOUR_USERNAME -pass YOUR_PASSWORD
 ```
 > **⚠️ _Note:_** You cannot use both the `-f` and `-u` flags at the same time. If you do, `discord-rss` will default to using the `-f` flag.
-### Running `discord-rss` from a Docker container
-If you are building the Docker image yourself (`docker build . -t discord-rss:latest`), you can put your `feeds.csv` file in the `discord-rss/` subdirectory of this project. This file will be copied into your local Docker image upon build.
 
-Otherwise, pull down the latest version of `discord-rss` (`docker pull howemando/discord-rss`) and run the image with the following command:
+### Running `discord-rss` from a Docker container
+If you are building the Docker image yourself, you can put your `feeds.csv` file in the `discord-rss/` subdirectory of this project. This file will be copied into your local Docker image upon build. You can then run the following command to build and run the Docker container:
 ```sh
-docker run -d -e BOT_TOKEN=YOUR_BOT_TOKEN -v "/path/to/your/feeds/file.csv:/app/feeds.csv" howemando/discord-rss
+docker build . -t discord-rss:local && \
+docker run -d -e BOT_TOKEN=YOUR_BOT_TOKEN discord-rss:local
 ```
 
-Next, run the image (`docker run -e BOT_TOKEN=YOUR_BOT_TOKEN -e RSS_URL=YOUR_RSS_FEED -e CHANNEL_ID=YOUR_DISCORD_CHANNEL_ID -e TIMER_INT=YOUR_TIMER_INT discord-rss`)
+Otherwise, pull down the latest version of `discord-rss` and run the image with the following command:
+```sh
+docker pull howemando/discord-rss && \
+docker run -d -e BOT_TOKEN=YOUR_BOT_TOKEN -v "/path/to/your/feeds/file.csv:/app/feeds.csv" howemando/discord-rss:latest
+```
+
+> **⚠️ _Note:_** If you are pulling the image down, Docker will require permission to access the path leading to `feeds.csv`. If you do not provide this permission, `discord-rss` will not be able to parse your RSS feeds. For more information, see Docker's documentation on [Voumes](https://docs.docker.com/storage/volumes/).
 
 ## But what about Discord?
 To generate a Bot Token, you'll need to go to the [Discord Developer Portal](https://discord.com/developers/applications/). [This article](https://www.freecodecamp.org/news/create-a-discord-bot-with-python/) by [freecodecamp.org](https://www.freecodecamp.org) does a great job of going through the steps / permissions you'll need for a simple Discord Bot.
@@ -62,3 +68,4 @@ To get your `CHANNEL_ID`, you'll need to enable developer mode on your Discord C
 * [bwmarrin/discordgo](https://github.com/bwmarrin/discordgo)
 * [Discord Support](https://support.discord.com/hc/en-us)
 * [Discord API Documentation](https://discord.com/developers/docs/intro)
+* [Docker Volumes](https://docs.docker.com/storage/volumes/)
