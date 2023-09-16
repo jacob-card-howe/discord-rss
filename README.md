@@ -59,9 +59,21 @@ docker run -d -e BOT_TOKEN=YOUR_BOT_TOKEN -v "/path/to/your/feeds/file.csv:/app/
 > **⚠️ _Note:_** If you are pulling the image down, Docker will require permission to access the path leading to `feeds.csv`. If you do not provide this permission, `discord-rss` will not be able to parse your RSS feeds. For more information, see Docker's documentation on [Voumes](https://docs.docker.com/storage/volumes/).
 
 ## But what about Discord?
-To generate a Bot Token, you'll need to go to the [Discord Developer Portal](https://discord.com/developers/applications/). [This article](https://www.freecodecamp.org/news/create-a-discord-bot-with-python/) by [freecodecamp.org](https://www.freecodecamp.org) does a great job of going through the steps / permissions you'll need for a simple Discord Bot.
+To get your `BOT_TOKEN`, log into the [Discord Developer Portal](https://discord.com/developers/applications/) and create an application if you haven't already. Bot tokens are issued from the application's `Bot` settings.
+
+Besides the bot token, you will need to enable `MESSAGE CONTENT INTENT`, also under the application's `Bot` settings.
+
+Finally, you will need to generate an invite link for your bot. Under the application's `Oauth2 > URL Generator` settings, select the following:
+  - SCOPES: `bot`
+  - BOT PERMISSIONS:
+    - GENERAL PERMISSIONS: `Read Messages/View Channels`
+    - TEXT PERMISSIONS: `Send Messages`
+
+The generated URL is used to invite your bot into Discord servers.
 
 To get your `CHANNEL_ID`, you'll need to enable developer mode on your Discord Client. [This Support Documentation by Discord](https://support.discord.com/hc/en-us/articles/206346498-Where-can-I-find-my-User-Server-Message-ID-) does a really good walkthrough of how to set that up.
+
+For more information, [This article](https://www.freecodecamp.org/news/create-a-discord-bot-with-python/) by [freecodecamp.org](https://www.freecodecamp.org) does a great job of going through a simple Discord Bot setup.
 
 ## Additional Documentation / References
 * [mmcdole/gofeed](https://github.com/mmcdole/gofeed)
